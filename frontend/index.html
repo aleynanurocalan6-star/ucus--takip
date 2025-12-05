@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Uçuş Takip Sistemi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <style>
+        /* Haritanın Tam Ekran Olmasını Sağlayın */
+        #map { height: 100vh; width: 100vw; }
+      /* Ana Leaflet İkon Kapsayıcısı - HAREKET (Konumlandırma) GEÇİŞİ */
+.leaflet-marker-icon {
+    /* Konum (transform) geçişi 4 saniyede yumuşak geçsin */
+    /* !important kullanmak zorundayız, aksi halde Leaflet ezer. */
+    transition: transform 4s cubic-bezier(0, 0, 0.25, 1) !important; 
+    will-change: transform; 
+    
+    /* Beyaz arka planı kaldırır */
+    background-color: transparent !important; 
+    border: none !important; 
+}
+
+/* İÇ Kapsayıcı - ROTASYON GEÇİŞİ */
+/* Rotasyonun yumuşaması için */
+.plane-rotator {
+    transition: transform 0.5s ease-out; 
+    transform-origin: center center; 
+    
+    /* Beyaz arka planı kaldırır */
+    background-color: transparent !important; 
+}
+        /* Glass Efekti */
+        .glass-panel {
+            background-color: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Özel Form Stilleri */
+        .custom-label {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 0.75rem; /* text-xs */
+            font-weight: bold;
+            color: #ccc;
+            letter-spacing: 0.05em; /* tracking-wider */
+        }
+        .custom-input {
+            width: 100%;
+            padding: 8px 12px;
+            border-radius: 6px;
+            background-color: #1f2937; /* bg-gray-800 */
+            border: 1px solid #4b5563; /* border-gray-600 */
+            color: #f3f4f6; /* text-gray-100 */
+            transition: border-color 0.2s;
+        }
+        .custom-input:focus {
+            border-color: #fcd34d; /* yellow-400 */
+            outline: none;
+        }
+
+        /* Detay Paneli Satırları */
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 0;
+            border-bottom: 1px dashed #374151; /* gray-700 */
+        }
+        .detail-label {
+            font-size: 0.875rem; /* text-sm */
+            font-weight: 500;
+            color: #9ca3af; /* text-gray-400 */
+        }
+        .detail-value {
+            font-size: 1rem; /* text-base */
+            font-weight: bold;
+            color: #e5e7eb; /* text-gray-200 */
+        }
+        
+        /* Genel Kaydırıcı Stili */
+        .custom-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #FCD34D; /* yellow-400 */
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(255, 215, 0, 0.8);
+        }
+        .custom-slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #FCD34D;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(255, 215, 0, 0.8);
+        }
+        
+        
+        /* Aktif Uçuşlar Listesi Kaydırma Çubuğu */
+        #flight-list {
+            /* Tailwind'de 'overflow-y-auto' ile otomatik kaydırma çubuğu sağlanmıştır. */
+            /* Özel kaydırma çubuğu stilleri isterseniz buraya eklenebilir. */
+        }
+
+        /* İlerleme Çubuğu Stilleri */
+        .list-progress-bar-container {
+            width: 100%;
+            background-color: #374151; /* gray-700 */
+            border-radius: 9999px;
+            height: 6px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+        .list-progress-bar {
+            height: 100%;
+            transition: width 0.5s ease-out;
+        }
+        
+        /* Marker Ikonları - Leaflet */
+        .plane-icon {
+            text-align: center;
+            font-size: 24px; 
+            line-height: 24px;
+            transform-origin: center center;
+            /* Sarı Parlak Efekt Güçlendirildi */
+            color: #fcd34d; /* yellow-400 */
+            text-shadow: 0 0 15px rgba(252, 211, 77, 1), 0 0 8px rgba(255, 255, 255, 0.7); 
+            animation: pulse-glow 2s infinite alternate ease-in-out; 
+            cursor: pointer;
+        }
+
+        /* Uçak Simgesi Parlama Animasyonu */
+        @keyframes pulse-glow {
+            from {
+                opacity: 0.9;
+                transform: scale(1);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1.2); /* Biraz daha belirgin */
+            }
+        }
+
+        .dot-icon {
+            width: 10px !important;
+            height: 10px !important;
+            border-radius: 50%;
+            opacity: 0.8;
+            margin-left: -5px !important; /* Ortalamak için */
+            margin-top: -5px !important; /* Ortalamak için */
+        }
+        .dot-green { background-color: #10b981; }
+        .dot-red { background-color: #ef4444; }
+
+        /* Time Travel/Live Buton Stilleri */
+        .mode-btn {
+            padding: 8px 16px;
+            border-radius: 9999px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 overflow-hidden">
+    
+    <div id="map"></div>
+    
+    <div id="message-box" class="fixed top-5 left-1/2 transform -translate-x-1/2 p-4 rounded-lg shadow-xl text-white z-[600] hidden transition-opacity duration-500 opacity-0" role="alert"></div>
+
+    <div id="left-panel" class="glass-panel absolute top-5 left-5 w-72 max-h-[90vh] rounded-xl z-[500] flex flex-col transition-all duration-300 transform translate-x-[-100%]">
+        
+        <div class="p-4 border-b border-yellow-800/50 flex justify-between items-center bg-black/40 rounded-t-xl">
+            <span class="text-yellow-400 font-extrabold tracking-widest text-xl">UÇUŞ LİSTESİ</span>
+            <button class="text-gray-400 hover:text-white transition text-xl" onclick="toggleLeftPanel(false)">✕</button>
+        </div>
+
+        <div id="flight-list" class="p-2 overflow-y-auto flex-grow" style="max-height: calc(90vh - 70px);"> 
+            <div class="p-4 text-center text-gray-400">Veriler bekleniyor...</div>
+        </div>
+    </div>
+
+    <button id="open-left-panel-btn" class="glass-panel absolute top-5 left-5 w-12 h-12 rounded-xl z-[400] text-yellow-400 text-2xl hover:bg-yellow-950 transition flex items-center justify-center" onclick="toggleLeftPanel(true)">
+        ☰
+    </button>
+    
+    <button id="create-route-btn-top" class="absolute top-8 left-1/2 transform -translate-x-1/2 bg-yellow-500 text-black font-extrabold px-6 py-2 rounded-full shadow-[0_0_20px_rgba(255,215,0,0.6)] z-[500] hover:scale-105 transition duration-300" onclick="toggleRightPanel('form')">
+        ✨ YENİ ROTA PLANLA
+    </button>
+
+
+    <div id="right-panel-form" class="glass-panel absolute top-5 right-5 bottom-5 w-96 rounded-xl z-[500] p-6 transform translate-x-[150%] transition-transform duration-300 overflow-y-auto hide-scrollbar">
+        
+        <div class="flex justify-between items-start mb-6">
+            <div>
+                <h2 class="text-3xl text-yellow-400 font-extrabold">ROTA PLANLAMA</h2>
+                <p class="text-gray-400 text-sm mt-1">Uçuş bilgilerini girerek haritaya yeni bir rota ekle.</p>
+            </div>
+            <button class="text-yellow-400 text-xl hover:text-white transition close-btn" onclick="toggleRightPanel(null)">✕</button>
+        </div>
+
+        <form id="flight-form" class="space-y-6"> 
+            
+            <div>
+                <label class="custom-label" for="flightId">UÇUŞ KODU (ID)</label>
+                <input type="text" id="flightId" required value="TK-101" class="custom-input">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="custom-label" for="startCity">KALKIŞ ŞEHRİ</label>
+                    <input type="text" id="startCity" required value="Ankara" class="custom-input">
+                </div>
+                <div>
+                    <label class="custom-label" for="endCity">VARIŞ ŞEHRİ</label>
+                    <input type="text" id="endCity" required value="İstanbul" class="custom-input">
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="custom-label" for="startDate">KALKIŞ ZAMANI (TARİH)</label>
+                    <input type="date" id="startDate" required value="2025-12-04" class="custom-input">
+                </div>
+                <div>
+                    <label class="custom-label" for="startTime">KALKIŞ SAATİ</label>
+                    <input type="time" id="startTime" required value="16:00" class="custom-input">
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="custom-label" for="endDate">VARIŞ ZAMANI (TARİH)</label>
+                    <input type="date" id="endDate" required value="2025-12-04" class="custom-input">
+                </div>
+                <div>
+                    <label class="custom-label" for="endTime">VARIŞ SAATİ</label>
+                    <input type="time" id="endTime" required value="18:00" class="custom-input">
+                </div>
+            </div>
+
+            <div>
+                <label class="custom-label" for="startCoords">KALKIŞ KOORDİNATLARI (Lat, Lng)</label>
+                <input type="text" id="startCoords" required value="39.9208, 32.8541" class="custom-input">
+            </div>
+
+            <div>
+                <label class="custom-label" for="endCoords">VARIŞ KOORDİNATLARI (Lat, Lng)</label>
+                <input type="text" id="endCoords" required value="41.0082, 28.9784" class="custom-input">
+            </div>
+            
+            <button type="submit" id="submit-btn" class="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-extrabold py-3 rounded mt-6 transition shadow-[0_0_20px_rgba(255,215,0,0.7)]">
+                KAYDET VE BAŞLAT
+            </button>
+        </form>
+    </div>
+
+    <div id="right-panel-detail" class="glass-panel absolute top-5 right-5 w-80 rounded-xl z-[500] transform translate-x-[150%] transition-transform duration-300">
+        <div class="p-4 border-b border-yellow-800/50 flex justify-between items-center bg-black/40 rounded-t-xl">
+            <div>
+                <h2 id="detail-id" class="text-4xl text-yellow-300 font-extrabold tracking-widest">TK-800</h2>
+                <span id="detail-status" class="text-sm uppercase font-bold tracking-widest mt-1 text-green-400">AKTİF UÇUŞ</span>
+            </div>
+            <button class="text-gray-400 hover:text-white transition text-xl" onclick="toggleRightPanel(null)">✕</button>
+        </div>
+
+        <div class="p-5 space-y-2">
+            
+            <div class="detail-row">
+                <span class="detail-label">Rota:</span>
+                <span id="detail-route" class="detail-value text-yellow-100">Bilinmiyor > Bilinmiyor</span> 
+            </div>
+
+            <div class="detail-row">
+                <span class="detail-label">Konum:</span>
+                <span id="detail-coords" class="detail-value font-mono text-base">Lat: 51.1700, Lng: -48.9343</span> 
+            </div>
+
+            <div class="detail-row">
+                <span class="detail-label">Hız (GS):</span>
+                <span class="detail-value">850 km/sa</span>
+            </div>
+
+            <div class="detail-row">
+                <span class="detail-label">Yükseklik:</span>
+                <span class="detail-value">35.000 ft</span>
+            </div>
+
+            <div class="detail-row">
+                <span class="detail-label">Rotadan Sapma:</span>
+                <span class="detail-value">0.00 km</span>
+            </div>
+            
+            <div class="detail-row">
+                <span class="detail-label">Kalkış:</span>
+                <span id="detail-dep-time" class="detail-value text-sm">05.01.2024 13:00:00</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Tahmini Varış:</span>
+                <span id="detail-arr-time" class="detail-value text-sm">N/A</span>
+            </div>
+
+            <div class="mt-6">
+                <label class="custom-label text-yellow-500 mb-2">İrtifa Verileri (Simüle)</label>
+                <div class="w-full h-16 bg-gradient-to-t from-gray-800 to-transparent rounded border border-gray-700 relative overflow-hidden">
+                     <svg class="absolute bottom-0 left-0 w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 100">
+                             <path d="M0,80 C20,70 50,40 100,50 L100,100 L0,100 Z" fill="rgba(16, 185, 129, 0.1)" stroke="#10b981" stroke-width="2"/>
+                     </svg>
+                     <div class="absolute bottom-1 left-2 text-[10px] text-gray-500">Kalkış</div>
+                     <div class="absolute bottom-1 right-2 text-[10px] text-gray-500">Varış</div>
+                </div>
+            </div>
+
+            <button id="delete-btn" class="w-full mt-6 bg-red-700 hover:bg-red-600 text-white font-extrabold py-3 rounded text-base transition border border-red-500 shadow-[0_0_15px_rgba(255,0,0,0.5)]">
+                UÇUŞU SİL (Kayıtlardan Kaldır)
+            </button>
+        </div>
+    </div>
+    
+    <button id="toggle-time-travel-btn" class="absolute bottom-8 left-1/2 transform -translate-x-1/2 bg-yellow-500 text-black font-extrabold px-6 py-2 rounded-full shadow-[0_0_20px_rgba(255,215,0,0.6)] z-[500] hover:scale-105 transition duration-300" onclick="toggleTimeTravelPanel(true)">
+        🕓 CANLI / ZAMAN YOLCULUĞU
+    </button>
+
+    <div id="time-travel-panel" class="glass-panel absolute bottom-[80px] left-1/2 transform -translate-x-1/2 w-[90%] md:w-[600px] rounded-xl z-[500] p-4 hidden">
+        
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-extrabold text-yellow-400">ZAMAN KONTROL PANELİ</h3>
+            <button class="text-gray-400 hover:text-white transition text-xl" onclick="toggleTimeTravelPanel(false)">✕</button>
+        </div>
+
+        <div class="flex justify-center space-x-4 mb-4">
+            <button id="mode-live-btn" class="mode-btn bg-green-600 hover:bg-green-500 text-white shadow-lg" onclick="setMode('live')">
+                🟢 CANLI AKIŞ (Şimdi)
+            </button>
+            <button id="mode-time-travel-btn" class="mode-btn bg-gray-700 hover:bg-gray-600 text-white shadow-lg" onclick="setMode('timetravel')">
+                ⏳ GERİ OYNAT
+            </button>
+        </div>
+
+        <div class="text-center mb-4 p-2 rounded bg-black/30">
+            <span id="current-mode-display" class="font-bold text-lg text-green-400">CANLI AKIŞ MODU</span>
+        </div>
+
+        <div id="live-controls" class="space-y-3">
+             <label class="custom-label text-yellow-500">CANLI AKIŞ HIZI KONTROLÜ</label>
+             <input type="range" id="live-speed-slider" min="1000" max="10000" value="5000" step="1000" 
+                     class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer custom-slider"
+                     onchange="updateLiveInterval(this.value)">
+             <div class="flex justify-between text-xs text-gray-400">
+                 <span>Çok Hızlı (1 sn)</span>
+                 <span id="slider-speed-display" class="font-bold text-yellow-400">5 saniyede bir</span>
+                 <span>Yavaş (10 sn)</span>
+             </div>
+        </div>
+
+        <div id="timetravel-controls" class="space-y-4 hidden mt-6 pt-4 border-t border-gray-700">
+            
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="custom-label" for="tt-date">TARİH SEÇİN</label>
+                    <input type="date" id="tt-date" class="custom-input">
+                </div>
+                <div>
+                    <label class="custom-label" for="tt-time">SAAT SEÇİN</label>
+                    <input type="time" id="tt-time" class="custom-input">
+                </div>
+            </div>
+            
+            <div class="space-y-3">
+                <label class="custom-label text-blue-400">TARİHİ KAYDIRARAK SEÇİN</label>
+                <input type="range" id="tt-time-slider" min="0" max="100" value="50" step="1" 
+                         class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer custom-slider"
+                         oninput="updateTimeTravelDisplay(this.value)" onchange="applyTimeTravelFromSlider()">
+                <div class="flex justify-between text-xs text-gray-400">
+                   <span id="tt-slider-start">İlk Kayıt</span>
+                   <span id="tt-slider-display" class="font-bold text-blue-400">Seçili Zaman: N/A</span>
+                   <span id="tt-slider-end">Şimdi</span>
+                </div>
+            </div>
+
+            
+            <button id="apply-timetravel-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold py-3 rounded transition shadow-[0_0_20px_rgba(0,191,255,0.7)]" onclick="applyTimeTravel()">
+                UYGULA VE KONUMU GÖSTER
+            </button>
+
+            <p class="text-yellow-400 text-sm italic text-center pt-2">Seçilen tarihteki anlık konumlar haritada gösterilecektir.</p>
+        </div>
+
+   </div>
+
+    <script>
+    // ====================================================================
+    // GLOBAL DEĞİŞKENLER VE SABİTLER
+    // ====================================================================
+
+    const API_BASE_URL = 'http://localhost:5058/api/flights';
+    const CURRENT_FLIGHT_URL = `${API_BASE_URL}/current`;
+    const CREATE_FLIGHT_URL = `${API_BASE_URL}`;
+
+    let map;
+    const flights = new Map();
+    const activeMarkers = {}; 
+
+    // Kontrol Elemanları
+    const formPanel = document.getElementById('right-panel-form');
+    const detailPanel = document.getElementById('right-panel-detail');
+    const flightListEl = document.getElementById('flight-list');
+   // const openLeftBtn = document.getElementById('open-left-panel-btn');
+    //const leftPanel = document.getElementById('left-panel');
+    const messageBox = document.getElementById('message-box');
+    const timeTravelPanel = document.getElementById('time-travel-panel');
+    const liveBtn = document.getElementById('mode-live-btn');
+    const timeTravelBtn = document.getElementById('mode-time-travel-btn');
+    const currentModeDisplay = document.getElementById('current-mode-display');
+    const ttControls = document.getElementById('timetravel-controls');
+    const liveControls = document.getElementById('live-controls');
+    const ttDateInput = document.getElementById('tt-date');
+    const ttTimeInput = document.getElementById('tt-time');
+    const liveSpeedSlider = document.getElementById('live-speed-slider');
+    const sliderSpeedDisplay = document.getElementById('slider-speed-display');
+
+    // Geri Oynatım Slider Elementleri
+    const ttTimeSlider = document.getElementById('tt-time-slider');
+    const ttSliderDisplay = document.getElementById('tt-slider-display');
+    const ttSliderStart = document.getElementById('tt-slider-start');
+    const ttSliderEnd = document.getElementById('tt-slider-end');
+
+    // Akış Kontrol Değişkenleri
+    let currentMode = 'live';
+    let liveUpdateIntervalId = null;
+    let LIVE_FETCH_INTERVAL = 5000; // Varsayılan 5 saniye
+    let selectedFlightId = null;
+    let selectedTimestamp = 0; 
+    let minTime = Date.now() - (7 * 24 * 60 * 60 * 1000); // Varsayılan son 7 gün
+    let maxTime = Date.now();
+
+    // ====================================================================
+    // YARDIMCI FONKSİYONLAR
+    // ====================================================================
+
+    function showMessage(text, type) {
+        messageBox.textContent = text;
+        messageBox.className = 'fixed top-5 left-1/2 transform -translate-x-1/2 p-4 rounded-lg shadow-xl text-white z-[600] transition-opacity duration-500';
+        
+        let bgColor = '';
+        if (type === 'success') { bgColor = 'bg-green-600'; }
+        else if (type === 'error') { bgColor = 'bg-red-600'; }
+        else { bgColor = 'bg-blue-600'; }
+
+        messageBox.classList.add(bgColor, 'opacity-100');
+        messageBox.classList.remove('hidden');
+
+        setTimeout(() => {
+            messageBox.classList.remove('opacity-100', bgColor);
+            messageBox.classList.add('opacity-0', 'hidden');
+        }, 3000);
+    }
+
+    function formatDateTime(isoStringOrTimestamp) {
+        if (!isoStringOrTimestamp) return 'N/A';
+        const date = typeof isoStringOrTimestamp === 'number' ? new Date(isoStringOrTimestamp) : new Date(isoStringOrTimestamp);
+        const datePart = date.toLocaleDateString('tr-TR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        const timePart = date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        return `${datePart} ${timePart}`;
+    }
+
+    function mapBackendStatusToFrontend(backendStatus) {
+        if (backendStatus === 'ACTIVE') return 'InFlight';
+        if (backendStatus === 'PENDING') return 'Scheduled';
+        if (backendStatus === 'COMPLETED') return 'Landed';
+        return 'Scheduled';
+    }
+
+   function createPlaneIcon(angle, status) {
+    const size = 65;
+    const anchor = size / 2;
+    const color = status === 'InFlight' ? '#FFD700' : '#6B7280';
+    const dropShadow = status === 'InFlight'
+        ? 'drop-shadow(0 0 8px rgba(255, 215, 0, 0.9))'
+        : 'none';
+    const detailPath = "M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z";
+
+    const svgHtml = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${size}" height="${size}"
+            style="filter: ${dropShadow}; overflow: visible; display: block;">
+            <path d="${detailPath}" fill="${color}" stroke="#000" stroke-width="0.5" />
+        </svg>
+    `;
+
+    return L.divIcon({
+        // className: 'plane-icon-container', // Bu sınıfa ihtiyacınız yok, Leaflet zaten divIcon'a gerekli sınıfları ekler.
+        html: `<div class="plane-rotator" style="
+                     /* Sadece ROTASYON için gerekli stil */
+                     transform: rotate(${angle}deg); 
+                     width: ${size}px; 
+                     height: ${size}px; 
+                     display: flex; 
+                     align-items: center; 
+                     justify-content: center;
+                     transform-origin: center center;
+                ">
+                    ${svgHtml}
+               </div>`,
+        iconSize: [size, size],
+        iconAnchor: [anchor, anchor]
+    });
+}
+        
+        
+        
+        
+        // Uçağın yönünü hesaplar (açı/bearing)
+        function calculateBearing(lat1, lon1, lat2, lon2) {
+            const toRad = (degree) => degree * (Math.PI / 180);
+            const dLon = toRad(lon2 - lon1);
+            const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+            const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) - Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
+            let brng = Math.atan2(y, x);
+            brng = brng * (180 / Math.PI);
+            return (brng + 360) % 360; // 0-360 derece arasına getir
+        }
+    function createDotIcon(color) {
+        return L.divIcon({ className: `dot-icon dot-${color}`, html: '', iconSize: [10, 10] });
+    }
+
+    function calculateBearing(lat1, lon1, lat2, lon2) {
+        const toRad = (degree) => degree * (Math.PI / 180);
+        const dLon = toRad(lon2 - lon1);
+        const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+        const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) - Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
+        let brng = Math.atan2(y, x);
+        brng = brng * (180 / Math.PI);
+        return (brng + 360) % 360;
+    }
+
+    // ====================================================================
+    // PANEL VE KONTROL İŞLEMLERİ
+    // ====================================================================
+const openLeftBtn = document.getElementById('open-left-panel-btn');
+const leftPanel = document.getElementById('left-panel');
+
+function toggleLeftPanel(show) {
+    
+    // Elementler bulunamazsa devam etme
+    if (!leftPanel || !openLeftBtn) return;
+    
+    // show undefined ise, paneli mevcut durumunun tersini al
+    // Panel kapalıysa (transform -translate-x-full içeriyorsa), aç demektir (true)
+    if (show === undefined) {
+        show = leftPanel.classList.contains('translate-x-[-100%]');
+    }
+
+    if (show) {
+        // GÖSTER (Panel Açılıyor)
+        leftPanel.classList.remove('translate-x-[-100%]');
+        openLeftBtn.classList.add('hidden');
+    } else {
+        // GİZLE (Panel Kapanıyor - Kapatma tuşu burayı çalıştırır)
+        leftPanel.classList.add('translate-x-[-100%]');
+        openLeftBtn.classList.remove('hidden');
+    }
+}
+    function toggleRightPanel(type, flightData = null) {
+        // Tüm panelleri kapat
+        detailPanel.classList.add('translate-x-[150%]');
+        formPanel.classList.add('translate-x-[150%]');
+
+        if (type === 'form') {
+            formPanel.classList.remove('translate-x-[150%]');
+        } else if (type === 'detail' && flightData) {
+            updateDetailPanel(flightData);
+            detailPanel.classList.remove('translate-x-[150%]');
+        }
+    }
+
+    function updateDetailPanel(data) {
+        // ... (Bu kısım aynı kalabilir)
+        document.getElementById('detail-id').textContent = data.flightId || 'TK-XXX';
+        document.getElementById('detail-route').textContent = `${data.startCity || 'Bilinmiyor'} > ${data.endCity || 'Bilinmiyor'}`;
+        
+        let statusText = 'PLANLANMIŞ';
+        let statusColor = 'text-yellow-400';
+        if (data.status === 'InFlight') { statusText = 'AKTİF UÇUŞ'; statusColor = 'text-green-400'; }
+        else if (data.status === 'Landed') { statusText = 'TAMAMLANDI'; statusColor = 'text-gray-400'; }
+        
+        document.getElementById('detail-status').textContent = statusText;
+        document.getElementById('detail-status').className = `text-sm uppercase font-bold tracking-widest mt-1 ${statusColor}`;
+        
+        const currentLat = data.currentLat || data.start[0];
+        const currentLng = data.currentLng || data.start[1];
+
+        document.getElementById('detail-coords').textContent = `Lat: ${currentLat.toFixed(4)}, Lng: ${currentLng.toFixed(4)}`;
+        
+        document.getElementById('detail-dep-time').textContent = formatDateTime(data.scheduledDepartureTime);
+        document.getElementById('detail-arr-time').textContent = formatDateTime(data.scheduledArrivalTime);
+
+        selectedFlightId = data.flightId;
+    }
+
+    function updateFlightList(flightsData) {
+        // ... (Bu kısım aynı kalabilir)
+        flightListEl.innerHTML = '';
+        if (flightsData.length === 0) {
+            flightListEl.innerHTML = '<div class="p-4 text-center text-gray-400">Gösterilecek uçuş yok.</div>';
+            return;
+        }
+
+        flightsData.forEach(flight => {
+            const statusColor = flight.status === 'InFlight' ? 'bg-green-500' : flight.status === 'Scheduled' ? 'bg-yellow-500' : 'bg-gray-500';
+            const statusText = flight.status === 'InFlight' ? 'AKTİF' : flight.status === 'Scheduled' ? 'PLANLI' : 'TAMAMLANDI';
+            const percentage = flight.progressPercent || 0;
+            const selectedClass = flight.flightId === selectedFlightId ? 'bg-yellow-900/50 border-yellow-400' : 'hover:bg-gray-800/50 border-transparent';
+
+            const flightItem = document.createElement('div');
+            // Kaydırma çubuğu için 'overflow-y-auto' parent elementte tanımlı.
+            flightItem.className = `p-3 border-l-4 cursor-pointer mb-2 rounded transition-all duration-200 ${selectedClass}`;
+            flightItem.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <strong class="text-lg text-white">${flight.flightId}</strong>
+                    <span class="text-xs font-bold ${statusColor} text-black px-2 py-0.5 rounded-full">${statusText}</span>
+                </div>
+                <div class="text-sm text-gray-400 mt-1">${flight.startCity} > ${flight.endCity}</div>
+                <div class="list-progress-bar-container">
+                    <div class="list-progress-bar ${statusColor}" style="width: ${percentage.toFixed(0)}%;"></div>
+                </div>
+                <div class="text-xs text-gray-400 mt-1 text-right">${percentage.toFixed(0)}% Tamamlandı</div>
+            `;
+            
+            flightItem.onclick = () => {
+                selectedFlightId = flight.flightId;
+                updateFlightList(Array.from(flights.values())); 
+                toggleRightPanel('detail', flight);
+                if (activeMarkers[flight.flightId]?.marker) {
+                    map.flyTo(activeMarkers[flight.flightId].marker.getLatLng(), 4);
+                }
+            };
+
+            flightListEl.appendChild(flightItem);
+        });
+    }
+
+    function toggleTimeTravelPanel(show) {
+        if (show === undefined) {
+             timeTravelPanel.classList.toggle('hidden');
+        } else if (show) {
+            timeTravelPanel.classList.remove('hidden');
+        } else {
+            timeTravelPanel.classList.add('hidden');
+        }
+
+        if (!timeTravelPanel.classList.contains('hidden')) {
+             // Panel açıldığında tarih/saat inputlarını şimdiki zamana ayarla
+            const now = new Date();
+            const nowISO = now.toISOString();
+            ttDateInput.value = nowISO.substring(0, 10);
+            ttTimeInput.value = now.toTimeString().substring(0, 5);
+             
+            // Slider başlangıç ve bitiş zamanlarını güncelle
+            updateTimeRange();
+            updateLiveInterval(liveSpeedSlider.value);
+        }
+    }
+
+    function updateLiveInterval(newInterval) {
+        LIVE_FETCH_INTERVAL = parseInt(newInterval, 10);
+        const seconds = LIVE_FETCH_INTERVAL / 1000;
+        sliderSpeedDisplay.textContent = `${seconds} saniyede bir`;
+        
+        if (currentMode === 'live') {
+            startLiveUpdate();
+        }
+    }
+
+    function setMode(mode) {
+        currentMode = mode;
+        
+        liveBtn.className = 'mode-btn shadow-lg';
+        timeTravelBtn.className = 'mode-btn shadow-lg';
+        currentModeDisplay.classList.remove('text-green-400', 'text-blue-400', 'animate-pulse');
+        liveControls.classList.add('hidden');
+        ttControls.classList.add('hidden');
+
+
+        if (mode === 'live') {
+            liveBtn.classList.add('bg-green-600', 'hover:bg-green-500', 'text-white');
+            timeTravelBtn.classList.add('bg-gray-700', 'hover:bg-gray-600', 'text-white');
+            currentModeDisplay.textContent = 'CANLI AKIŞ MODU';
+            currentModeDisplay.classList.add('text-green-400', 'animate-pulse');
+            
+            liveControls.classList.remove('hidden');
+            startLiveUpdate();
+            showMessage('Canlı akış başlatıldı.', 'info');
+        } else { // timetravel
+            liveBtn.classList.add('bg-gray-700', 'hover:bg-gray-600', 'text-white');
+            timeTravelBtn.classList.add('bg-blue-600', 'hover:bg-blue-500', 'text-white');
+            currentModeDisplay.textContent = 'GERİ OYNAT MODU (Tarih Seçin)';
+            currentModeDisplay.classList.add('text-blue-400');
+            
+            ttControls.classList.remove('hidden');
+            stopLiveUpdate();
+            selectedTimestamp = 0; // Zaman seçimi bekliyor
+            updateTimeRange(); // Slider aralığını güncelle
+            showMessage('Geri oynatım moduna geçildi. Tarih seçin.', 'info');
+        }
+    }
+
+    function updateTimeRange() {
+        // Bu fonksiyon, gerçek bir uygulamada sunucudan en erken ve en geç kayıtları almalıdır.
+        // Şimdilik varsayılan değerleri kullanıyoruz.
+        maxTime = Date.now();
+        minTime = maxTime - (7 * 24 * 60 * 60 * 1000); // Son 7 gün
+
+        ttTimeSlider.min = minTime;
+        ttTimeSlider.max = maxTime;
+        ttTimeSlider.value = maxTime; // Başlangıçta en son zamanı göster
+        
+        ttSliderStart.textContent = formatDateTime(minTime).substring(0, 10); 
+        ttSliderEnd.textContent = formatDateTime(maxTime).substring(0, 10);
+        ttSliderDisplay.textContent = `Şimdi: ${formatDateTime(maxTime)}`;
+    }
+
+    function updateTimeTravelDisplay(value) {
+        selectedTimestamp = parseInt(value, 10);
+        ttSliderDisplay.textContent = `Seçili Zaman: ${formatDateTime(selectedTimestamp)}`;
+        // Slider'ı oynattıkça tarih/saat inputlarını da güncelle
+        const date = new Date(selectedTimestamp);
+        ttDateInput.value = date.toISOString().substring(0, 10);
+        ttTimeInput.value = date.toTimeString().substring(0, 5);
+    }
+    
+    function applyTimeTravelFromSlider() {
+        // Slider bırakıldığında ya da manuel input ile UYGULA butonuna basıldığında konum güncellenir.
+        if (currentMode === 'timetravel') {
+            applyTimeTravel();
+        }
+    }
+
+    function applyTimeTravel() {
+        const date = ttDateInput.value;
+        const time = ttTimeInput.value;
+        
+        if (!date || !time) {
+            showMessage('Lütfen geçerli bir tarih ve saat seçin.', 'error');
+            return;
+        }
+        
+        // Manual input'lardan zamanı al
+        selectedTimestamp = Date.parse(`${date}T${time}:00`); 
+        
+        if (isNaN(selectedTimestamp)) {
+            showMessage('Geçersiz tarih veya saat formatı.', 'error');
+            return;
+        }
+        
+        // Slider'ı manuel seçime göre ayarla
+        if (selectedTimestamp < minTime) selectedTimestamp = minTime;
+        if (selectedTimestamp > maxTime) selectedTimestamp = maxTime;
+        ttTimeSlider.value = selectedTimestamp;
+        
+        currentModeDisplay.textContent = `GÖSTERİLEN ZAMAN: ${formatDateTime(selectedTimestamp)}`;
+        currentModeDisplay.classList.remove('animate-pulse');
+        ttSliderDisplay.textContent = `Seçili Zaman: ${formatDateTime(selectedTimestamp)}`;
+        
+        fetchFlightData();
+        showMessage(`Uçuşlar ${formatDateTime(selectedTimestamp)} anına ayarlandı.`, 'success');
+    }
+
+    function startLiveUpdate() {
+        if (liveUpdateIntervalId) clearInterval(liveUpdateIntervalId);
+        currentMode = 'live';
+        fetchFlightData(); 
+        liveUpdateIntervalId = setInterval(fetchFlightData, LIVE_FETCH_INTERVAL);
+    }
+
+    function stopLiveUpdate() {
+        clearInterval(liveUpdateIntervalId);
+        liveUpdateIntervalId = null;
+    }
+
+
+    // ====================================================================
+    // API VE HARİTA GÜNCELLEME
+    // ====================================================================
+
+    // ... (fetchFlightData ve updateMapWithLiveData fonksiyonları önceki kodla aynı kalabilir, 
+    // uçak ikonu stili CSS'te güncellendi) ...
+
+    async function fetchFlightData() {
+        if (currentMode === 'timetravel' && selectedTimestamp === 0) return;
+
+        let timestampToFetch;
+        let modeText;
+        let modeClass;
+
+        if (currentMode === 'live') {
+            timestampToFetch = Date.now();
+            modeText = 'CANLI AKIŞ';
+            modeClass = 'text-green-400 animate-pulse font-bold';
+        } else {
+            timestampToFetch = selectedTimestamp;
+            modeText = `GERİ OYNATIM: ${formatDateTime(selectedTimestamp)}`;
+            modeClass = 'text-blue-400 font-bold';
+        }
+
+        if (!timeTravelPanel.classList.contains('hidden')) {
+            currentModeDisplay.textContent = modeText;
+            currentModeDisplay.className = `font-bold text-lg ${modeClass}`;
+        }
+
+        const fetchURL = `${CURRENT_FLIGHT_URL}?timestamp=${timestampToFetch}`;
+
+        try {
+            const response = await fetch(fetchURL);
+            if (response.ok) {
+                const data = await response.json();
+                updateMapWithLiveData(Array.isArray(data) ? data : [data]); 
+            } else {
+                 console.warn(`API isteği başarısız: ${response.status}`);
+                 if(currentMode === 'live') {
+                     stopLiveUpdate();
+                     currentModeDisplay.textContent = 'BAĞLANTI YOK';
+                     currentModeDisplay.className = 'font-bold text-lg text-red-500';
+                 }
+            }
+        } catch (e) {
+            console.error("Fetch error", e);
+            if(currentMode === 'live') { 
+                 stopLiveUpdate();
+                 currentModeDisplay.textContent = 'BAĞLANTI YOK';
+                 currentModeDisplay.className = 'font-bold text-lg text-red-500';
+            }
+        }
+    }
+// Bu, Leaflet'in tüm setLatLng mekanizmasını atlayıp, 
+// konumu doğrudan ikonun transform stiliyle ayarlar.
+// Eski SmoothPlaneMarker yerine, geçiş sorunlarını çözmek için L.DomUtil'i kullanan sınıf.
+const DirectTransformMarker = L.Marker.extend({
+    onAdd: function (map) {
+        L.Marker.prototype.onAdd.call(this, map); 
+        this._updateIconLocation(); 
+    },
+
+    // setLatLng çağrıldığında DOM'u güncellemek için kendi metodumuzu çağırır.
+    setLatLng: function (latlng) {
+        this._latlng = L.latLng(latlng);
+        if (this._map) {
+            this._updateIconLocation(); 
+        }
+        return this;
+    },
+
+    // Leaflet'in kendi yardımcı fonksiyonunu kullanarak pozisyonu ayarlar.
+    _updateIconLocation: function () {
+        if (!this._map || !this._icon) return;
+
+        const point = this._map.latLngToLayerPoint(this._latlng);
+
+        // CSS'teki transition kuralı sayesinde hareket yumuşak olacaktır.
+        L.DomUtil.setTransform(this._icon, point); 
+    },
+
+    onRemove: function (map) {
+        L.Marker.prototype.onRemove.call(this, map);
+    }
+});
+async function updateMapWithLiveData(apiFlights) {
+    if (!Array.isArray(apiFlights)) apiFlights = [apiFlights];
+
+    // YENİ KRİTİK ADIM: Sadece aktif uçuşları filtrele ('InFlight' olanları haritada tut)
+    const activeFlights = apiFlights.filter(f => {
+        const status = mapBackendStatusToFrontend(f.status);
+        // İstenen: Sadece 'InFlight' olan uçaklar haritada gözüksün.
+        return status === 'InFlight'; 
+    });
+
+    // Haritada tutulması gereken uçuş ID'lerini sadece aktif uçuşlardan al
+    const flightsToKeep = new Set(activeFlights.map(f => f.flightId));
+
+    // 1. Haritada olmayan/artık aktif olmayan uçuşları temizle
+    flights.forEach((flight, id) => {
+        if (!flightsToKeep.has(id)) {
+            // Polyline ve terminal marker'ları haritadan kaldır
+            if (flight.polyline) map.removeLayer(flight.polyline);
+            if (flight.startMarker) map.removeLayer(flight.startMarker);
+            if (flight.endMarker) map.removeLayer(flight.endMarker);
+
+            // Uçak marker'ını haritadan kaldır
+            const markerData = activeMarkers[id];
+            if (markerData?.marker) {
+                map.removeLayer(markerData.marker);
+            }
+
+            flights.delete(id);
+        }
+    });
+
+    const newActiveMarkers = {};
+
+    // Sadece filtrelenmiş aktif uçuşlar üzerinde döngü çalıştır
+    activeFlights.forEach(apiFlight => { 
+        const id = apiFlight.flightId;
+        const status = mapBackendStatusToFrontend(apiFlight.status);
+
+        const startLat = parseFloat(apiFlight.startLat);
+        const startLng = parseFloat(apiFlight.startLng);
+        const endLat = parseFloat(apiFlight.endLat);
+        const endLng = parseFloat(apiFlight.endLng);
+
+        let currentLat = parseFloat(apiFlight.currentLat);
+        let currentLng = parseFloat(apiFlight.currentLng);
+
+        let newDisplayLat, newDisplayLng;
+        let angle = 0;
+
+        // Uçuş bilgisi yoksa yeni oluştur (Polyline, Start/End Marker'lar)
+        if (!flights.has(id)) {
+            // Polyline ve Terminal Marker'ları sadece bir kez oluştur
+            const polyline = L.polyline([[startLat, startLng], [endLat, endLng]], {
+                color: '#FFD700', weight: 3, opacity: 0.6, dashArray: '5, 10'
+            }).addTo(map);
+            const startMarker = L.marker([startLat, startLng], { icon: createDotIcon('green') }).addTo(map);
+            const endMarker = L.marker([endLat, endLng], { icon: createDotIcon('red') }).addTo(map);
+
+            flights.set(id, {
+                ...apiFlight,
+                status: status,
+                startCity: apiFlight.startCity || 'Bilinmiyor',
+                endCity: apiFlight.endCity || 'Bilinmiyor',
+                start: [startLat, startLng],
+                end: [endLat, endLng],
+                polyline,
+                startMarker,
+                endMarker,
+                progressPercent: 0
+            });
+        } else {
+            const existingFlight = flights.get(id);
+            flights.set(id, {
+                ...existingFlight,
+                ...apiFlight,
+                status: status,
+            });
+        }
+
+        const flightData = flights.get(id);
+        const oldMarkerData = activeMarkers[id];
+        const oldCoords = oldMarkerData?.oldCoords;
+        let planeMarker = oldMarkerData?.marker; 
+
+        // KRİTİK NOKTA: Yeni konumu belirle
+        if (status === 'Landed') {
+            newDisplayLat = endLat;
+            newDisplayLng = endLng;
+            flightData.progressPercent = 100;
+        } else if (status === 'InFlight') {
+            if (currentLat !== 0 && currentLng !== 0 && !isNaN(currentLat) && !isNaN(currentLng)) {
+                newDisplayLat = currentLat;
+                newDisplayLng = currentLng;
+                const totalDist = L.latLng(startLat, startLng).distanceTo(L.latLng(endLat, endLng));
+                const currentDist = L.latLng(startLat, startLng).distanceTo(L.latLng(currentLat, currentLng));
+                flightData.progressPercent = (currentDist / totalDist) * 100;
+            } else {
+                newDisplayLat = oldCoords?.[0] || startLat;
+                newDisplayLng = oldCoords?.[1] || startLng;
+            }
+        } else {
+            newDisplayLat = startLat;
+            newDisplayLng = startLng;
+            flightData.progressPercent = 0;
+        }
+
+        const endPosition = [newDisplayLat, newDisplayLng];
+
+        // Açı hesaplama:
+        if (status === 'InFlight' && oldCoords) {
+            angle = calculateBearing(oldCoords[0], oldCoords[1], newDisplayLat, newDisplayLng);
+        } else {
+            angle = calculateBearing(startLat, startLng, endLat, endLng);
+        }
+
+        const newIcon = createPlaneIcon(angle, status);
+
+        // 📢 LOG'LARINIZI KORUYORUM
+        console.log(`--- Uçuş ID: ${id} ---`);
+        console.log(`Eski Konum: ${oldCoords ? oldCoords[0] : 'İlk'}, ${oldCoords ? oldCoords[1] : 'İlk'}`);
+        console.log(`Yeni Konum: ${endPosition[0]}, ${endPosition[1]}`);
+        console.log(`Konum Değişti mi? ${oldCoords ? (oldCoords[0] !== endPosition[0] || oldCoords[1] !== endPosition[1]) : 'İlk Çağrı'}`);
+        console.log(`---`);
+        // ------------------------------------------
+
+        // *** KRİTİK ANİMASYON BÖLÜMÜ: DirectTransformMarker Kullanımı ***
+        if (!planeMarker) {
+            // Marker ilk defa oluşturuluyor
+            planeMarker = new DirectTransformMarker(endPosition, { 
+                icon: newIcon
+            }).addTo(map);
+
+            // İlk sıçramayı engellemek için geçişi kaldır
+            const icon = planeMarker.getElement();
+            if (icon) {
+                 icon.style.transition = 'none'; 
+            }
+
+        } else {
+            // setLatLng çağrısı, DirectTransformMarker içinde _updateIconLocation'ı çağıracaktır.
+            planeMarker.setLatLng(endPosition);
+
+            // İkonu (açı/rotasyon için) güncelle
+            planeMarker.setIcon(newIcon);
+        }
+
+        // Tıklama olayını ekle/güncelle
+        if (!oldMarkerData) {
+            planeMarker.on('click', () => {
+                selectedFlightId = id;
+                updateFlightList(Array.from(flights.values()));
+                toggleRightPanel('detail', flightData);
+            });
+        }
+
+        // Marker'ı güncel referanslarla yeni listeye ekle
+        newActiveMarkers[id] = {
+            marker: planeMarker,
+            oldCoords: endPosition // Bir sonraki güncelleme için başlangıç noktası
+        };
+
+        // Detay paneli açıksa ve bu uçuş seçiliyse güncelle
+        if (id === selectedFlightId && !detailPanel.classList.contains('translate-x-[150%]')) {
+            updateDetailPanel(flightData);
+        }
+    });
+
+    // 3. Eski ve yeni aktif marker'lar listelerini güncelle
+    Object.keys(activeMarkers).forEach(key => {
+        const markerData = activeMarkers[key];
+        if (!newActiveMarkers[key] && markerData.marker) {
+            map.removeLayer(markerData.marker);
+        }
+        delete activeMarkers[key];
+    });
+    Object.assign(activeMarkers, newActiveMarkers);
+// ======================================================================
+// 🟢🔴 BAŞLANGIÇ/BİTİŞ NOKTASI İKON TANIMI
+// ======================================================================
+function createDotIcon(color) {
+    // Renge göre doğru Tailwind sınıfını belirle
+    const bgColor = color === 'green' ? 'bg-green-500' : 'bg-red-600';
+    const shadowColor = color === 'green' ? 'rgba(16, 185, 129, 0.9)' : 'rgba(239, 68, 68, 0.9)';
+    
+    // İkonun HTML içeriği
+    const htmlContent = `
+        <div style="
+            width: 12px; 
+            height: 12px; 
+            border-radius: 50%; 
+            box-shadow: 0 0 8px ${shadowColor}; 
+        " class="${bgColor}"></div>
+    `;
+
+    return L.divIcon({
+        className: 'custom-dot-marker', // Marker'ın etrafındaki varsayılan Leaflet çerçevesini kaldırır
+        html: htmlContent,
+        iconSize: [12, 12],     // İkonun Leaflet tarafından kullanılan boyutu (Div'in boyutuyla eşleşmeli)
+        iconAnchor: [6, 6]      // Tıklama merkezini div'in tam ortasına ayarlar
+    });
+}
+    // Tüm uçuşları (aktif/pasif) listeyi güncellemek için kullan
+    updateFlightList(Array.from(apiFlights.values()));
+}  // BAŞLANGIÇ İŞLEMLERİ
+    // ====================================================================
+
+    function initMap() {
+        map = L.map('map', {
+            center: [40, 30], 
+            zoom: 3,
+            minZoom: 2,
+            maxZoom: 10,
+            zoomControl: false 
+        });
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(map);
+
+        // LEAFLET KONTROLÜ İLE ALTTAKI BUTONUN YERİNE ÜSTTEKİ KULLANILDI.
+        // Eski butonu kaldırdık.
+
+        // Form gönderimini ele al
+        document.getElementById('flight-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const flightData = {
+                flightId: document.getElementById('flightId').value,
+                startCity: document.getElementById('startCity').value,
+                endCity: document.getElementById('endCity').value,
+                scheduledDepartureTime: new Date(`${document.getElementById('startDate').value}T${document.getElementById('startTime').value}:00`).toISOString(),
+                scheduledArrivalTime: new Date(`${document.getElementById('endDate').value}T${document.getElementById('endTime').value}:00`).toISOString(),
+                startLat: parseFloat(document.getElementById('startCoords').value.split(',')[0].trim()),
+                startLng: parseFloat(document.getElementById('startCoords').value.split(',')[1].trim()),
+                endLat: parseFloat(document.getElementById('endCoords').value.split(',')[0].trim()),
+                endLng: parseFloat(document.getElementById('endCoords').value.split(',')[1].trim()),
+            };
+
+            try {
+                const response = await fetch(CREATE_FLIGHT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(flightData)
+                });
+
+                if (response.ok) {
+                    showMessage(`Uçuş ${flightData.flightId} başarıyla planlandı.`, 'success');
+                    toggleRightPanel(null);
+                    fetchFlightData(); 
+                } else {
+                    const errorText = await response.text();
+                    showMessage(`Rota planlama hatası: ${errorText}`, 'error');
+                }
+            } catch (error) {
+                showMessage('Bağlantı hatası: API ile iletişim kurulamadı.', 'error');
+                console.error('Rota Planlama Hatası:', error);
+            }
+        });
+
+        // Uçuşu Sil butonunu ele al
+        document.getElementById('delete-btn').addEventListener('click', async function() {
+            if (!selectedFlightId) return;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/${selectedFlightId}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    showMessage(`${selectedFlightId} uçuşu silindi.`, 'success');
+                    toggleRightPanel(null);
+                    selectedFlightId = null;
+                    fetchFlightData(); 
+                } else {
+                    showMessage(`Silme hatası: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                showMessage('Bağlantı hatası: API ile iletişim kurulamadı.', 'error');
+                console.error('Uçuş Silme Hatası:', error);
+            }
+        });
+        
+        // Başlangıçta canlı moda ayarla
+        setMode('live');
+        // Slider'ı başlangıçta doğru değeri göstermesi için güncelle
+        updateLiveInterval(liveSpeedSlider.value);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initMap();
+    });
+
+    </script>
+</body>
+</html>

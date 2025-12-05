@@ -1,0 +1,89 @@
+.planning-panel-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s, visibility 0.3s;
+}
+
+.planning-panel-container.open {
+    opacity: 1;
+    visibility: visible;
+}
+
+.planning-panel {
+    background-color: #2c2f33; 
+    padding: 30px;
+    border-radius: 10px;
+    width: 90%;
+    max-width: 500px;
+    color: #fff;
+}
+
+.panel-top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 0.9em;
+    font-weight: bold;
+    color: #ffc800;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #4f545c;
+    border-radius: 5px;
+    background-color: #36393f;
+    color: #fff;
+}
+
+.two-col {
+    display: flex;
+    gap: 15px;
+}
+
+.two-col .form-group {
+    flex: 1;
+}
+
+.action-btn {
+    width: 100%;
+    padding: 15px;
+    background-color: #ffc800;
+    color: #000;
+    border: none;
+    border-radius: 5px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 20px;
+}
+
+.close-x-btn {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 1.5em;
+    cursor: pointer;
+}
+
+.divider {
+    border: 0;
+    height: 1px;
+    background: #4f545c;
+    margin: 15px 0;
+}
