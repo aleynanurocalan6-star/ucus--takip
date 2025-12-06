@@ -1,5 +1,4 @@
 using Backend; // Flight modeline ve FlightDbContext'e erişim için
-// Flight modelinin bulunduğu namespace'i ekliyoruz (Gerekiyorsa)
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging; 
@@ -12,9 +11,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<FlightDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// KRİTİK: FlightSimulatorService kaydı (Singleton olarak)
-// Bu sayede tek bir _lastUpdateTime örneği korunur ve simülasyon tutarlı olur.
-builder.Services.AddSingleton<FlightSimulatorService>();
+// ❌ KALDIRILDI: FlightSimulatorService kaydı (Artık sadece simülasyon sayfasında kullanılacaksa burada tanımlanmaz)
+// builder.Services.AddSingleton<FlightSimulatorService>(); 
 
 // 2. CORS (Çapraz Kaynak Erişim) Ayarları
 builder.Services.AddCors(options =>
@@ -73,29 +71,35 @@ app.Run();
 
 
 // =======================================================
-// Yardımcı Metot: SeedData
+// Yardımcı Metot: SeedData (Zaman Damgaları Milisaniyeye Çevrildi)
 // =======================================================
 void SeedData(FlightDbContext context)
 {
     Console.WriteLine("Veritabanına başlangıç uçuş verileri ekleniyor...");
     
-    var nowSeconds = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+    // 💡 KRİTİK DÜZELTME: Milisaniye cinsinden zaman damgası al
+    var nowMillis = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); 
+    
+    // 3600 saniye = 1 saat = 3.600.000 ms
+    // 7200 saniye = 2 saat = 7.200.000 ms
+    // 120 saniye = 2 dakika = 120.000 ms
+    // 10800 saniye = 3 saat = 10.800.000 ms
     
     context.Flights.AddRange(
-        // Uçuş 1: Ankara -> İstanbul (AKTİF BAŞLAMIŞ)
+        // Uçuş 1: Ankara -> İstanbul (AKTİF BAŞLAMIŞ - 1 saat önce)
         new Flight 
         { 
             FlightId = "TK-1923", 
             StartLat = 39.93, StartLng = 32.85, EndLat = 41.00, EndLng = 28.97, 
             Progress = 0.3, 
-            CurrentLat = 40.23, CurrentLng = 31.68, // Mevcut konum, yolda olduğunu gösteriyor
+            CurrentLat = 40.23, CurrentLng = 31.68,
             Speed = 850, Altitude = 35000, 
             Status = "ACTIVE", 
-            StartTimestamp = nowSeconds - 3600, // 1 saat önce başladı
+            StartTimestamp = nowMillis - (3600 * 1000), 
             Origin = "Ankara", Destination = "İstanbul"
         },
         
-        // Uçuş 2: İzmir -> Antalya (AKTİF BAŞLAMIŞ)
+        // Uçuş 2: İzmir -> Antalya (AKTİF BAŞLAMIŞ - 2 saat önce)
         new Flight 
         { 
             FlightId = "TK-1881", 
@@ -104,20 +108,20 @@ void SeedData(FlightDbContext context)
             CurrentLat = 37.42, CurrentLng = 28.58, 
             Speed = 900, Altitude = 38000, 
             Status = "ACTIVE", 
-            StartTimestamp = nowSeconds - 7200, // 2 saat önce başladı
+            StartTimestamp = nowMillis - (7200 * 1000), 
             Origin = "İzmir", Destination = "Antalya"
         },
         
-        // Uçuş 3: İstanbul -> Ankara (BEKLEYEN) - 2 dakika sonra başlayacak
+        // Uçuş 3: İstanbul -> Ankara (BEKLEYEN - 2 dakika sonra)
         new Flight 
         { 
             FlightId = "TK-0002", 
             StartLat = 41.00, StartLng = 28.97, EndLat = 39.93, EndLng = 32.85, 
             Progress = 0.0, 
-            CurrentLat = 41.00, CurrentLng = 28.97, // Kalkış noktasında
+            CurrentLat = 41.00, CurrentLng = 28.97,
             Speed = 0, Altitude = 0, 
             Status = "PENDING", 
-            StartTimestamp = nowSeconds + 120, // 2 dakika sonra kalkacak
+            StartTimestamp = nowMillis + (120 * 1000), 
             Origin = "İstanbul", Destination = "Ankara"
         },
         
@@ -130,7 +134,7 @@ void SeedData(FlightDbContext context)
             CurrentLat = 39.93, CurrentLng = 32.85, 
             Speed = 0, Altitude = 0, 
             Status = "COMPLETED", 
-            StartTimestamp = nowSeconds - 10800,
+            StartTimestamp = nowMillis - (10800 * 1000),
             Origin = "İstanbul", Destination = "Ankara"
         }
     );
