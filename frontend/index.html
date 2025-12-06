@@ -14,96 +14,122 @@
         /* Haritanın Tam Ekran Olmasını Sağlayın */
         #map { height: 100vh; width: 100vw; }
       /* Ana Leaflet İkon Kapsayıcısı - HAREKET (Konumlandırma) GEÇİŞİ */
+/* ========================================================== */
+/* BÖLÜM 1: Leaflet Marker ve İkon Düzeltmeleri */
+/* ========================================================== */
+
+/* 1.1 Genel Marker Kapsayıcısı (Tüm Marker'lar Dahil) */
 .leaflet-marker-icon {
-    /* Konum (transform) geçişi 4 saniyede yumuşak geçsin */
-    /* !important kullanmak zorundayız, aksi halde Leaflet ezer. */
-    transition: transform 4s cubic-bezier(0, 0, 0.25, 1) !important; 
+    /* ⚠️ KRİTİK DÜZELTME: Konum (transform) geçişini buradan KALDIRDIK. 
+       Artık bu geçiş sadece .flight-marker-animated sınıfına sahip olan uçak marker'ında olacak.
+       Bu sayede kırmızı/yeşil noktalar zoom sonrası kaymayacak. */
+    
     will-change: transform; 
     
-    /* Beyaz arka planı kaldırır */
+    /* Beyaz arka planı kaldırır (Örn: L.Icon veya DivIcon'dan kalan) */
     background-color: transparent !important; 
     border: none !important; 
 }
 
-/* İÇ Kapsayıcı - ROTASYON GEÇİŞİ */
-/* Rotasyonun yumuşaması için */
+/* 1.2 Uçak Marker'ına Özel Geçiş Sınıfı */
+/* Bu sınıf SADECE uçak marker'ı JavaScript'te oluşturulurken atanmalıdır. */
+.flight-marker-animated {
+    /* Uçağın yumuşak ilerlemesi için gereken 4 saniyelik konum geçişi */
+    transition: transform 4s cubic-bezier(0, 0, 0.25, 1) !important; 
+}
+
+/* 1.3 Uçak Rotasyon Kapsayıcısı */
+/* Rotasyonun yumuşaması için bu kural kalmalıdır. */
 .plane-rotator {
     transition: transform 0.5s ease-out; 
     transform-origin: center center; 
-    
-    /* Beyaz arka planı kaldırır */
     background-color: transparent !important; 
 }
-        /* Glass Efekti */
-        .glass-panel {
-            background-color: rgba(0, 0, 0, 0.4);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: white;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-        }
 
-        /* Özel Form Stilleri */
-        .custom-label {
-            display: block;
-            margin-bottom: 4px;
-            font-size: 0.75rem; /* text-xs */
-            font-weight: bold;
-            color: #ccc;
-            letter-spacing: 0.05em; /* tracking-wider */
-        }
-        .custom-input {
-            width: 100%;
-            padding: 8px 12px;
-            border-radius: 6px;
-            background-color: #1f2937; /* bg-gray-800 */
-            border: 1px solid #4b5563; /* border-gray-600 */
-            color: #f3f4f6; /* text-gray-100 */
-            transition: border-color 0.2s;
-        }
-        .custom-input:focus {
-            border-color: #fcd34d; /* yellow-400 */
-            outline: none;
-        }
+/* 1.4 Terminal Noktaları (Kırmızı/Yeşil Dot) */
+/* Bu sınıf, DivIcon'un varsayılan çerçevesini kaldırmak için kullanılır. */
+.custom-dot-marker {
+    /* Bu sınıfa özel konumlandırma (margin/padding/transform) eklemeyin. */
+    /* İçindeki div zaten boyutlandırılmıştır. */
+    background-color: transparent !important;
+    border: none !important;
+}
 
-        /* Detay Paneli Satırları */
-        .detail-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 4px 0;
-            border-bottom: 1px dashed #374151; /* gray-700 */
-        }
-        .detail-label {
-            font-size: 0.875rem; /* text-sm */
-            font-weight: 500;
-            color: #9ca3af; /* text-gray-400 */
-        }
-        .detail-value {
-            font-size: 1rem; /* text-base */
-            font-weight: bold;
-            color: #e5e7eb; /* text-gray-200 */
-        }
-        
-        /* Genel Kaydırıcı Stili */
-        .custom-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 16px;
-            height: 16px;
-            background: #FCD34D; /* yellow-400 */
-            border-radius: 50%;
-            cursor: pointer;
-            box-shadow: 0 0 5px rgba(255, 215, 0, 0.8);
-        }
-        .custom-slider::-moz-range-thumb {
-            width: 16px;
-            height: 16px;
-            background: #FCD34D;
-            border-radius: 50%;
-            cursor: pointer;
-            box-shadow: 0 0 5px rgba(255, 215, 0, 0.8);
-        }
+
+/* ========================================================== */
+/* BÖLÜM 2: Uygulama Arayüz Stilleri (Glass Panel, Form, vb.) */
+/* ========================================================== */
+
+/* Glass Efekti */
+.glass-panel {
+    background-color: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+}
+
+/* Özel Form Stilleri */
+.custom-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.75rem; /* text-xs */
+    font-weight: bold;
+    color: #ccc;
+    letter-spacing: 0.05em; /* tracking-wider */
+}
+.custom-input {
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background-color: #1f2937; /* bg-gray-800 */
+    border: 1px solid #4b5563; /* border-gray-600 */
+    color: #f3f4f6; /* text-gray-100 */
+    transition: border-color 0.2s;
+}
+.custom-input:focus {
+    border-color: #fcd34d; /* yellow-400 */
+    outline: none;
+}
+
+/* Detay Paneli Satırları */
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px dashed #374151; /* gray-700 */
+}
+.detail-label {
+    font-size: 0.875rem; /* text-sm */
+    font-weight: 500;
+    color: #9ca3af; /* text-gray-400 */
+}
+.detail-value {
+    font-size: 1rem; /* text-base */
+    font-weight: bold;
+    color: #e5e7eb; /* text-gray-200 */
+}
+
+/* Genel Kaydırıcı Stili */
+.custom-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: #FCD34D; /* yellow-400 */
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(255, 215, 0, 0.8);
+}
+.custom-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: #FCD34D;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(255, 215, 0, 0.8);
+}
         
         
         /* Aktif Uçuşlar Listesi Kaydırma Çubuğu */
@@ -873,6 +899,9 @@ const DirectTransformMarker = L.Marker.extend({
         L.Marker.prototype.onRemove.call(this, map);
     }
 });
+// ======================================================================
+// ✈️ ANA HARİTA GÜNCELLEME FONKSİYONU
+// ======================================================================
 async function updateMapWithLiveData(apiFlights) {
     if (!Array.isArray(apiFlights)) apiFlights = [apiFlights];
 
@@ -880,7 +909,7 @@ async function updateMapWithLiveData(apiFlights) {
     const activeFlights = apiFlights.filter(f => {
         const status = mapBackendStatusToFrontend(f.status);
         // İstenen: Sadece 'InFlight' olan uçaklar haritada gözüksün.
-        return status === 'InFlight'; 
+        return status === 'InFlight';
     });
 
     // Haritada tutulması gereken uçuş ID'lerini sadece aktif uçuşlardan al
@@ -907,7 +936,7 @@ async function updateMapWithLiveData(apiFlights) {
     const newActiveMarkers = {};
 
     // Sadece filtrelenmiş aktif uçuşlar üzerinde döngü çalıştır
-    activeFlights.forEach(apiFlight => { 
+    activeFlights.forEach(apiFlight => {
         const id = apiFlight.flightId;
         const status = mapBackendStatusToFrontend(apiFlight.status);
 
@@ -955,7 +984,7 @@ async function updateMapWithLiveData(apiFlights) {
         const flightData = flights.get(id);
         const oldMarkerData = activeMarkers[id];
         const oldCoords = oldMarkerData?.oldCoords;
-        let planeMarker = oldMarkerData?.marker; 
+        let planeMarker = oldMarkerData?.marker;
 
         // KRİTİK NOKTA: Yeni konumu belirle
         if (status === 'Landed') {
@@ -978,17 +1007,58 @@ async function updateMapWithLiveData(apiFlights) {
             newDisplayLng = startLng;
             flightData.progressPercent = 0;
         }
+// ... (Diğer kodlar)
 
         const endPosition = [newDisplayLat, newDisplayLng];
 
         // Açı hesaplama:
+        // 💡 DÜZELTME: Uçağın yönünü her zaman kalkış ve varış noktaları arasındaki
+        // genel rotaya sabitle. Bu, zaman dilimi değişse bile yönün sabit kalmasını sağlar.
+        angle = calculateBearing(startLat, startLng, endLat, endLng); 
+        
+        // Eski mantık (Artık kullanılmıyor, çünkü anlık hareket yönü yerine temel rotayı istiyorsunuz):
+        /*
         if (status === 'InFlight' && oldCoords) {
             angle = calculateBearing(oldCoords[0], oldCoords[1], newDisplayLat, newDisplayLng);
         } else {
             angle = calculateBearing(startLat, startLng, endLat, endLng);
         }
+        */
 
         const newIcon = createPlaneIcon(angle, status);
+
+        // ... (LOG'lar)
+
+        // *** KRİTİK ANİMASYON BÖLÜMÜ: DirectTransformMarker Kullanımı ***
+        if (!planeMarker) {
+            // Marker ilk defa oluşturuluyor
+            planeMarker = new DirectTransformMarker(endPosition, { 
+                icon: newIcon,
+                className: 'flight-marker-animated' 
+            }).addTo(map);
+
+            const icon = planeMarker.getElement();
+            if (icon) {
+                 // İlk sıçramayı/kaymayı engellemek için geçişi kaldır
+                 icon.style.transition = 'none';
+                 
+                 // Geçişi tekrar etkinleştirme (Asıl animasyon için)
+                 setTimeout(() => {
+                     if (icon) {
+                         icon.style.transition = ''; 
+                     }
+                 }, 50); 
+            }
+
+        } else {
+            // setLatLng çağrısı, DirectTransformMarker içinde _updateIconLocation'ı çağıracaktır.
+            planeMarker.setLatLng(endPosition);
+
+            // İkonu (açı/rotasyon için) güncelle
+            planeMarker.setIcon(newIcon);
+        }
+
+// ... (Diğer kodlar)
 
         // 📢 LOG'LARINIZI KORUYORUM
         console.log(`--- Uçuş ID: ${id} ---`);
@@ -1000,18 +1070,30 @@ async function updateMapWithLiveData(apiFlights) {
 
         // *** KRİTİK ANİMASYON BÖLÜMÜ: DirectTransformMarker Kullanımı ***
         if (!planeMarker) {
-            // Marker ilk defa oluşturuluyor
-            planeMarker = new DirectTransformMarker(endPosition, { 
-                icon: newIcon
-            }).addTo(map);
+    // Marker ilk defa oluşturuluyor
+    planeMarker = new DirectTransformMarker(endPosition, { 
+        icon: newIcon,
+        // 1. Oluşturma anında animasyon sınıfını ekliyoruz
+        className: 'flight-marker-animated' 
+    }).addTo(map);
 
-            // İlk sıçramayı engellemek için geçişi kaldır
-            const icon = planeMarker.getElement();
-            if (icon) {
-                 icon.style.transition = 'none'; 
-            }
+    const icon = planeMarker.getElement();
+    if (icon) {
+         // 2. İlk sıçramayı/kaymayı engellemek için hemen geçişi kaldırıyoruz.
+         // Bu, uçağın ilk pozisyonuna anında atlamasını sağlar.
+         icon.style.transition = 'none';
+         
+         // 3. Geçişi tekrar etkinleştirme (Asıl animasyon için)
+         // Bir sonraki data güncellemesinde (yaklaşık 50ms sonra) akıcı hareket başlasın.
+         setTimeout(() => {
+             if (icon) {
+                 // CSS'teki .flight-marker-animated sınıfının transition kuralını devreye sok.
+                 icon.style.transition = ''; 
+             }
+         }, 50); 
+    }
 
-        } else {
+} else {
             // setLatLng çağrısı, DirectTransformMarker içinde _updateIconLocation'ı çağıracaktır.
             planeMarker.setLatLng(endPosition);
 
@@ -1049,6 +1131,11 @@ async function updateMapWithLiveData(apiFlights) {
         delete activeMarkers[key];
     });
     Object.assign(activeMarkers, newActiveMarkers);
+    
+    // Tüm uçuşları (aktif/pasif) listeyi güncellemek için kullan
+    updateFlightList(Array.from(apiFlights.values()));
+}
+
 // ======================================================================
 // 🟢🔴 BAŞLANGIÇ/BİTİŞ NOKTASI İKON TANIMI
 // ======================================================================
@@ -1056,6 +1143,8 @@ function createDotIcon(color) {
     // Renge göre doğru Tailwind sınıfını belirle
     const bgColor = color === 'green' ? 'bg-green-500' : 'bg-red-600';
     const shadowColor = color === 'green' ? 'rgba(16, 185, 129, 0.9)' : 'rgba(239, 68, 68, 0.9)';
+    const size = 12; 
+    const anchor = size / 2;
     
     // İkonun HTML içeriği
     const htmlContent = `
@@ -1070,13 +1159,62 @@ function createDotIcon(color) {
     return L.divIcon({
         className: 'custom-dot-marker', // Marker'ın etrafındaki varsayılan Leaflet çerçevesini kaldırır
         html: htmlContent,
-        iconSize: [12, 12],     // İkonun Leaflet tarafından kullanılan boyutu (Div'in boyutuyla eşleşmeli)
-        iconAnchor: [6, 6]      // Tıklama merkezini div'in tam ortasına ayarlar
+        iconSize: [size, size],     // İkonun Leaflet tarafından kullanılan boyutu (Div'in boyutuyla eşleşmeli)
+        iconAnchor: [anchor, anchor]      // Tıklama merkezini div'in tam ortasına ayarlar
     });
 }
-    // Tüm uçuşları (aktif/pasif) listeyi güncellemek için kullan
-    updateFlightList(Array.from(apiFlights.values()));
-}  // BAŞLANGIÇ İŞLEMLERİ
+
+
+// ======================================================================
+// ✈️ UÇAK İKON TANIMI
+// ======================================================================
+function createPlaneIcon(angle, status) {
+    const size = 65;
+    const anchor = size / 2;
+    const color = status === 'InFlight' ? '#FFD700' : '#6B7280';
+    const dropShadow = status === 'InFlight'
+        ? 'drop-shadow(0 0 8px rgba(255, 215, 0, 0.9))'
+        : 'none';
+    const detailPath = "M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z";
+
+    const svgHtml = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${size}" height="${size}"
+            style="filter: ${dropShadow}; overflow: visible; display: block;">
+            <path d="${detailPath}" fill="${color}" stroke="#000" stroke-width="0.5" />
+        </svg>
+    `;
+
+    return L.divIcon({
+        html: `<div class="plane-rotator" style="
+                       /* Sadece ROTASYON için gerekli stil */
+                       transform: rotate(${angle}deg); 
+                       width: ${size}px; 
+                       height: ${size}px; 
+                       display: flex; 
+                       align-items: center; 
+                       justify-content: center;
+                       transform-origin: center center;
+                     ">
+                       ${svgHtml}
+                  </div>`,
+        iconSize: [size, size],
+        iconAnchor: [anchor, anchor]
+    });
+}
+
+// ======================================================================
+// 🧭 YÖN/AÇI HESAPLAMA FONKSİYONU
+// ======================================================================
+function calculateBearing(lat1, lon1, lat2, lon2) {
+    const toRad = (degree) => degree * (Math.PI / 180);
+    const dLon = toRad(lon2 - lon1);
+    const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+    const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) - Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
+    let brng = Math.atan2(y, x);
+    brng = brng * (180 / Math.PI);
+    return (brng + 360) % 360; // 0-360 derece arasına getir
+}
+// ====================================================================== // BAŞLANGIÇ İŞLEMLERİ
     // ====================================================================
 
     function initMap() {
