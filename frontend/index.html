@@ -617,70 +617,246 @@ function toggleLeftPanel(show) {
     }
 
     function updateDetailPanel(data) {
-        // ... (Bu kısım aynı kalabilir)
-        document.getElementById('detail-id').textContent = data.flightId || 'TK-XXX';
-        document.getElementById('detail-route').textContent = `${data.startCity || 'Bilinmiyor'} > ${data.endCity || 'Bilinmiyor'}`;
-        
-        let statusText = 'PLANLANMIŞ';
-        let statusColor = 'text-yellow-400';
-        if (data.status === 'InFlight') { statusText = 'AKTİF UÇUŞ'; statusColor = 'text-green-400'; }
-        else if (data.status === 'Landed') { statusText = 'TAMAMLANDI'; statusColor = 'text-gray-400'; }
-        
-        document.getElementById('detail-status').textContent = statusText;
-        document.getElementById('detail-status').className = `text-sm uppercase font-bold tracking-widest mt-1 ${statusColor}`;
-        
-        const currentLat = data.currentLat || data.start[0];
-        const currentLng = data.currentLng || data.start[1];
+    
+    // Güvenlik kontrolü
+    if (!data) return; 
 
+    // 1. Uçuş ID'si
+    document.getElementById('detail-id').textContent = data.flightId || 'TK-XXX';
+    
+    // 2. Rota Bilgisi (Kalkış > Varış)
+    // 💡 Düzeltme: Şehir isimlerini 'origin'/'destination' veya 'startCity'/'endCity' alanlarından alıyoruz.
+    const startLocation = data.origin || data.startCity || 'Bilinmiyor';
+    const endLocation = data.destination || data.endCity || 'Bilinmiyor';
+
+    document.getElementById('detail-route').textContent = `${startLocation} > ${endLocation}`;
+    
+    // 3. Durum Metni ve Rengi
+    let statusText = 'PLANLANDI'; // Önceki 'PLANLANMIŞ' yerine daha yaygın kullanılan 'PLANLANDI'
+    let statusColor = 'text-yellow-400';
+    
+    // 💡 Düzeltme: Durum metinleri Türkçe olarak güncellendi.
+    if (data.status === 'ACTIVE' || data.status === 'InFlight') { 
+        statusText = 'UÇUŞTA'; // veya 'AKTİF UÇUŞ'
+        statusColor = 'text-green-400'; 
+    }
+    else if (data.status === 'COMPLETED' || data.status === 'Landed') { 
+        statusText = 'TAMAMLANDI'; 
+        statusColor = 'text-gray-400'; 
+    }
+    else if (data.status === 'PENDING' || data.status === 'Scheduled') {
+        statusText = 'PLANLANDI';
+        statusColor = 'text-yellow-400';
+    }
+    
+    document.getElementById('detail-status').textContent = statusText;
+    document.getElementById('detail-status').className = `text-sm uppercase font-bold tracking-widest mt-1 ${statusColor}`;
+    
+    // 4. Mevcut Koordinatlar
+    // 'currentLat' veya 'start' dizisinin ilk elemanı kullanılır.
+    const currentLat = data.currentLat || (data.start ? data.start[0] : null);
+    const currentLng = data.currentLng || (data.start ? data.start[1] : null);
+
+    if (currentLat !== null && currentLng !== null) {
         document.getElementById('detail-coords').textContent = `Lat: ${currentLat.toFixed(4)}, Lng: ${currentLng.toFixed(4)}`;
-        
-        document.getElementById('detail-dep-time').textContent = formatDateTime(data.scheduledDepartureTime);
-        document.getElementById('detail-arr-time').textContent = formatDateTime(data.scheduledArrivalTime);
-
-        selectedFlightId = data.flightId;
+    } else {
+        document.getElementById('detail-coords').textContent = 'Koordinat Bilinmiyor';
     }
 
-    function updateFlightList(flightsData) {
-        // ... (Bu kısım aynı kalabilir)
-        flightListEl.innerHTML = '';
-        if (flightsData.length === 0) {
-            flightListEl.innerHTML = '<div class="p-4 text-center text-gray-400">Gösterilecek uçuş yok.</div>';
-            return;
+    // 5. Zaman Bilgileri
+    // Not: Bu kısım, HTML'de bu ID'lere sahip alanlar olduğunu ve 'formatDateTime' fonksiyonunun erişilebilir olduğunu varsayar.
+    document.getElementById('detail-dep-time').textContent = formatDateTime(data.scheduledDepartureTime || data.departureTimestamp);
+    document.getElementById('detail-arr-time').textContent = formatDateTime(data.scheduledArrivalTime || data.arrivalTimestamp);
+
+    // Seçili uçuş ID'sini güncelle (Eğer bu değişken global olarak kullanılıyorsa)
+    window.selectedFlightId = data.flightId; 
+}// --- SABİT TANIMLAMALAR ---
+// Bu sabitlerin uygulamanızın diğer kısımlarında zaten tanımlı olduğunu varsayıyorum.
+// const BASE_API_URL = "http://localhost:5058"; 
+// const LIVE_API_URL = `${BASE_API_URL}/api/flights/current`; 
+// const POST_API_URL = `${BASE_API_URL}/api/flights`; 
+// const PLANE_ICON_PATH = "/assets/ucak (1).png"; 
+
+// --- YARDIMCI FONKSİYONLAR ---
+
+/**
+ * Yardımcı Fonksiyon: Şehir adı yoksa koordinatları döndürür.
+ * Rota bilgisini Bilinmiyor yerine koordinatlarla yedekler.
+ */
+function getRouteDisplaySafJS(flight, isOrigin) {
+    // 1. Şehir adı kontrolü (API'den veya formdan gelen alan isimlerini kontrol eder)
+    const city = isOrigin 
+        ? (flight.origin || flight.startCity) 
+        : (flight.destination || flight.endCity);
+    
+    // Şehir adı doluysa ve geçerliyse onu göster
+    if (city && typeof city === 'string' && city.trim() !== '' && city.toLowerCase() !== 'bilinmiyor') {
+        return city;
+    } 
+    
+    // 2. Koordinat kontrolü
+    const lat = isOrigin ? flight.startLat : flight.endLat;
+    const lng = isOrigin ? flight.startLng : flight.endLng;
+
+    // Koordinatlar varsa, koordinatları göster (Sayı olup olmadığını kontrol et)
+    if (lat !== undefined && lng !== undefined && !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lng))) {
+        return `${parseFloat(lat).toFixed(4)}, ${parseFloat(lng).toFixed(4)}`;
+    }
+    
+    // Hiçbiri yoksa (Bu, veride koordinatların da olmadığı anlamına gelir)
+    return 'Bilinmiyor';
+}
+
+/**
+ * Tarih/Saat formatlama fonksiyonu (Erişilebilir olduğunu varsayar)
+ * Lütfen bu fonksiyonu kendi kodunuzdan getirin, aksi halde bu satırlar hata verecektir.
+ */
+function formatDateTime(timestamp) {
+    if (!timestamp) return 'N/A';
+    try {
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) + 
+               ' (' + date.toLocaleDateString('tr-TR') + ')';
+    } catch (e) {
+        return 'Tarih Format Hatası';
+    }
+}
+
+
+/**
+ * Detay Panelini Güncelleyen Fonksiyon
+ */
+function updateDetailPanel(data) {
+    
+    if (!data) return; 
+
+    // 1. Uçuş ID'si
+    const detailIdEl = document.getElementById('detail-id');
+    if (detailIdEl) detailIdEl.textContent = data.flightId || 'TK-XXX';
+    
+    // 2. Rota Bilgisi (Kalkış > Varış) - KOORDİNAT YEDEKLEMESİ İLE
+    const startLocation = getRouteDisplaySafJS(data, true);  // true = origin
+    const endLocation = getRouteDisplaySafJS(data, false); // false = destination
+
+    const detailRouteElement = document.getElementById('detail-route');
+    if (detailRouteElement) {
+        detailRouteElement.textContent = `${startLocation} > ${endLocation}`;
+    }
+    
+    // 3. Durum Metni ve Rengi
+    let statusText = 'PLANLANDI';
+    let statusColor = 'text-yellow-400';
+    
+    // API durumları: ACTIVE/InFlight (UÇUŞTA), COMPLETED/Landed (TAMAMLANDI), PENDING/Scheduled (PLANLANDI)
+    if (data.status === 'ACTIVE' || data.status === 'InFlight') { 
+        statusText = 'UÇUŞTA';
+        statusColor = 'text-green-400'; 
+    }
+    else if (data.status === 'COMPLETED' || data.status === 'Landed') { 
+        statusText = 'TAMAMLANDI'; 
+        statusColor = 'text-gray-400'; 
+    }
+    
+    const detailStatusElement = document.getElementById('detail-status');
+    if (detailStatusElement) {
+        detailStatusElement.textContent = statusText;
+        // Tailwind CSS sınıflarını kullandığınızı varsayar
+        detailStatusElement.className = `text-sm uppercase font-bold tracking-widest mt-1 ${statusColor}`;
+    }
+    
+    // 4. Mevcut Koordinatlar
+    const currentLat = data.currentLat || (data.start ? data.start[0] : null);
+    const currentLng = data.currentLng || (data.start ? data.start[1] : null);
+
+    const detailCoordsElement = document.getElementById('detail-coords');
+    if (detailCoordsElement) {
+        if (currentLat !== null && currentLng !== null) {
+            detailCoordsElement.textContent = `Lat: ${parseFloat(currentLat).toFixed(4)}, Lng: ${parseFloat(currentLng).toFixed(4)}`;
+        } else {
+            detailCoordsElement.textContent = 'Koordinat Bilinmiyor';
         }
-
-        flightsData.forEach(flight => {
-            const statusColor = flight.status === 'InFlight' ? 'bg-green-500' : flight.status === 'Scheduled' ? 'bg-yellow-500' : 'bg-gray-500';
-            const statusText = flight.status === 'InFlight' ? 'AKTİF' : flight.status === 'Scheduled' ? 'PLANLI' : 'TAMAMLANDI';
-            const percentage = flight.progressPercent || 0;
-            const selectedClass = flight.flightId === selectedFlightId ? 'bg-yellow-900/50 border-yellow-400' : 'hover:bg-gray-800/50 border-transparent';
-
-            const flightItem = document.createElement('div');
-            // Kaydırma çubuğu için 'overflow-y-auto' parent elementte tanımlı.
-            flightItem.className = `p-3 border-l-4 cursor-pointer mb-2 rounded transition-all duration-200 ${selectedClass}`;
-            flightItem.innerHTML = `
-                <div class="flex justify-between items-center">
-                    <strong class="text-lg text-white">${flight.flightId}</strong>
-                    <span class="text-xs font-bold ${statusColor} text-black px-2 py-0.5 rounded-full">${statusText}</span>
-                </div>
-                <div class="text-sm text-gray-400 mt-1">${flight.startCity} > ${flight.endCity}</div>
-                <div class="list-progress-bar-container">
-                    <div class="list-progress-bar ${statusColor}" style="width: ${percentage.toFixed(0)}%;"></div>
-                </div>
-                <div class="text-xs text-gray-400 mt-1 text-right">${percentage.toFixed(0)}% Tamamlandı</div>
-            `;
-            
-            flightItem.onclick = () => {
-                selectedFlightId = flight.flightId;
-                updateFlightList(Array.from(flights.values())); 
-                toggleRightPanel('detail', flight);
-                if (activeMarkers[flight.flightId]?.marker) {
-                    map.flyTo(activeMarkers[flight.flightId].marker.getLatLng(), 4);
-                }
-            };
-
-            flightListEl.appendChild(flightItem);
-        });
     }
+
+    // 5. Zaman Bilgileri
+    // Not: formatDateTime fonksiyonunun erişilebilir olması gerekir.
+    if (document.getElementById('detail-dep-time')) {
+        document.getElementById('detail-dep-time').textContent = formatDateTime(data.scheduledDepartureTime || data.departureTimestamp);
+    }
+    if (document.getElementById('detail-arr-time')) {
+        document.getElementById('detail-arr-time').textContent = formatDateTime(data.scheduledArrivalTime || data.arrivalTimestamp);
+    }
+    
+    // Hız, yükseklik vb. diğer alanları da buraya ekleyebilirsiniz (Örn: detail-speed, detail-altitude)
+
+    // Seçili uçuş ID'sini güncelle (Global değişken)
+    window.selectedFlightId = data.flightId; 
+}
+
+
+/**
+ * Uçuş Listesini Güncelleyen Fonksiyon
+ */
+function updateFlightList(flightsData) {
+    // flightListEl'in DOM'da var olduğunu varsayar.
+    const flightListEl = document.getElementById('flight-list'); 
+    if (!flightListEl) return;
+    
+    flightListEl.innerHTML = '';
+    
+    if (flightsData.length === 0) {
+        flightListEl.innerHTML = '<div class="p-4 text-center text-gray-400">Gösterilecek uçuş yok.</div>';
+        return;
+    }
+
+    flightsData.forEach(flight => {
+        // Durum/Renk Tanımları
+        const statusColor = flight.status === 'InFlight' || flight.status === 'ACTIVE' ? 'bg-green-500' : flight.status === 'Scheduled' || flight.status === 'PENDING' ? 'bg-yellow-500' : 'bg-gray-500';
+        const statusText = flight.status === 'InFlight' || flight.status === 'ACTIVE' ? 'AKTİF' : flight.status === 'Scheduled' || flight.status === 'PENDING' ? 'PLANLI' : 'TAMAMLANDI';
+        const percentage = flight.progressPercent || (flight.progress * 100) || 0; // progressPercent veya progress kullan
+        
+        // selectedFlightId'nin global değişken olduğunu varsayar.
+        const selectedClass = flight.flightId === window.selectedFlightId ? 'bg-yellow-900/50 border-yellow-400' : 'hover:bg-gray-800/50 border-transparent';
+
+        // 🚀 DÜZELTME: Rota Bilgisini Koordinatlarla Yedekle
+        const startLocation = getRouteDisplaySafJS(flight, true);
+        const endLocation = getRouteDisplaySafJS(flight, false);
+
+        const flightItem = document.createElement('div');
+        flightItem.className = `p-3 border-l-4 cursor-pointer mb-2 rounded transition-all duration-200 ${selectedClass}`;
+        flightItem.innerHTML = `
+            <div class="flex justify-between items-center">
+                <strong class="text-lg text-white">${flight.flightId}</strong>
+                <span class="text-xs font-bold ${statusColor} text-black px-2 py-0.5 rounded-full">${statusText}</span>
+            </div>
+            <div class="text-sm text-gray-400 mt-1">${startLocation} > ${endLocation}</div>
+            <div class="list-progress-bar-container">
+                <div class="list-progress-bar ${statusColor}" style="width: ${percentage.toFixed(0)}%;"></div>
+            </div>
+            <div class="text-xs text-gray-400 mt-1 text-right">${percentage.toFixed(0)}% Tamamlandı</div>
+        `;
+        
+        // Tıklama Olayı (toggleRightPanel, map, activeMarkers'ın erişilebilir olduğunu varsayar)
+        flightItem.onclick = () => {
+            window.selectedFlightId = flight.flightId;
+            // Tüm listeyi yeniden çizmek yerine sadece seçili sınıfı güncelleyebilirsiniz,
+            // ancak mevcut mantığınızı koruyarak tam listeyi yeniden çiziyorum:
+            // updateFlightList(Array.from(flights.values())); 
+            
+            // Eğer toggleRightPanel global bir fonksiyonsa:
+            // window.toggleRightPanel('detail', flight); 
+
+            // Haritada odaklanma
+            if (window.activeMarkers && window.activeMarkers[flight.flightId]?.marker && window.map) {
+                // map ve L (Leaflet) globalde tanımlı olmalı
+                window.map.flyTo(window.activeMarkers[flight.flightId].marker.getLatLng(), 4);
+            }
+        };
+
+        flightListEl.appendChild(flightItem);
+    });
+}
+
+// ... (Diğer ana başlangıç ve API çekme mantığınız buraya devam etmelidir)
 
     function toggleTimeTravelPanel(show) {
         if (show === undefined) {
