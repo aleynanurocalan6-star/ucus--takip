@@ -17,7 +17,15 @@
 /* ========================================================== */
 /* BÖLÜM 1: Leaflet Marker ve İkon Düzeltmeleri */
 /* ========================================================== */
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}
 
+/* 💡 DÜZELTME: Firefox için kaydırma çubuğu gizleme */
+.hide-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}
 /* 1.1 Genel Marker Kapsayıcısı (Tüm Marker'lar Dahil) */
 .leaflet-marker-icon {
     /* ⚠️ KRİTİK DÜZELTME: Konum (transform) geçişini buradan KALDIRDIK. 
@@ -204,8 +212,7 @@
     
     <div id="message-box" class="fixed top-5 left-1/2 transform -translate-x-1/2 p-4 rounded-lg shadow-xl text-white z-[600] hidden transition-opacity duration-500 opacity-0" role="alert"></div>
 
-    <div id="left-panel" class="glass-panel absolute top-5 left-5 w-72 max-h-[90vh] rounded-xl z-[500] flex flex-col transition-all duration-300 transform translate-x-[-100%]">
-        
+    <div id="left-panel" class="glass-panel absolute top-5 left-0 w-72 max-h-[90vh] rounded-xl z-[500] flex flex-col transition-all duration-300 transform translate-x-[-100%]">
         <div class="p-4 border-b border-yellow-800/50 flex justify-between items-center bg-black/40 rounded-t-xl">
             <span class="text-yellow-400 font-extrabold tracking-widest text-xl">UÇUŞ LİSTESİ</span>
             <button class="text-gray-400 hover:text-white transition text-xl" onclick="toggleLeftPanel(false)">✕</button>
@@ -1016,15 +1023,7 @@ async function updateMapWithLiveData(apiFlights) {
         // genel rotaya sabitle. Bu, zaman dilimi değişse bile yönün sabit kalmasını sağlar.
         angle = calculateBearing(startLat, startLng, endLat, endLng); 
         
-        // Eski mantık (Artık kullanılmıyor, çünkü anlık hareket yönü yerine temel rotayı istiyorsunuz):
-        /*
-        if (status === 'InFlight' && oldCoords) {
-            angle = calculateBearing(oldCoords[0], oldCoords[1], newDisplayLat, newDisplayLng);
-        } else {
-            angle = calculateBearing(startLat, startLng, endLat, endLng);
-        }
-        */
-
+       
         const newIcon = createPlaneIcon(angle, status);
 
         // ... (LOG'lar)
@@ -1058,7 +1057,7 @@ async function updateMapWithLiveData(apiFlights) {
             planeMarker.setIcon(newIcon);
         }
 
-// ... (Diğer kodlar)
+
 
         // 📢 LOG'LARINIZI KORUYORUM
         console.log(`--- Uçuş ID: ${id} ---`);
