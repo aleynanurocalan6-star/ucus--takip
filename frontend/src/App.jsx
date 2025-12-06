@@ -8,7 +8,7 @@ const HIGHLIGHT_COLOR = "#FFD700"; // Altın Sarısı
 const SELECTED_COLOR = "#007BFF"; // Mavi Vurgu
 const BASE_API_URL = "http://localhost:5058"; 
 // API'den gelen son çıktınıza göre URL'yi düzeltiyoruz
-const LIVE_API_URL = `${BASE_API_URL}/api/flights/live`; 
+const LIVE_API_URL = `${BASE_API_URL}/api/flights/current`; 
 const POST_API_URL = `${BASE_API_URL}/api/flights`; 
 
 const PLANE_ICON_PATH = "/assets/ucak (1).png"; 
