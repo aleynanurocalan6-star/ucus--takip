@@ -413,7 +413,6 @@
     // ====================================================================
 // A. SABİTLER VE GLOBAL DEĞİŞKENLER
 // ====================================================================
-
 // API Uç Noktaları
 const API_BASE_URL = 'http://localhost:5058/api/flights';
 const CURRENT_FLIGHT_URL = `${API_BASE_URL}/current`; 
@@ -435,7 +434,8 @@ let liveInterval;
 let DOM = {}; // DOM elementlerini tutacak nesne
 
 // Simülasyon başlangıç zamanı (Örnek verinin başladığı zaman)
-const SIMULATION_START_TIME = new Date('2025-12-04T16:00:00').getTime();
+// NOT: Bu zaman, API'den veri olmadığı durumda zaman yolculuğu aralığını belirler.
+const SIMULATION_START_TIME = new Date('2025-12-04T16:00:00').getTime(); 
 const SIMULATION_END_TIME = new Date('2025-12-04T18:00:00').getTime();
 let currentTime = Date.now(); // Canlı modda anlık zamanı tutar.
 let timeTravelDate = new Date(); // Zaman yolculuğu modunda seçilen zamanı tutar.
@@ -661,6 +661,15 @@ function calculatePositionAtTime(flight, targetTime) {
     const endTime = flight.parsedEndTime;
     const duration = endTime - startTime;
 
+    if (duration <= 0) {
+         // Başlangıç ve bitiş zamanı aynı veya hatalı
+        const position = flight.startCoords;
+        const heading = 0; // Geçersiz rota için rastgele yön
+        const progress = targetTime >= startTime ? 1 : 0;
+        return { lat: position.lat, lng: position.lng, heading, progress };
+    }
+
+
     if (targetTime < startTime || targetTime > endTime) {
         // Uçuş henüz başlamadı veya bitti.
         const position = targetTime < startTime ? flight.startCoords : flight.endCoords;
@@ -757,10 +766,6 @@ function updateFlightPositions(targetTime) {
 
 // --- MARKER YÖNETİMİ (Leaflet) ---
 
-// Kendi özel marker sınıfımızı Leaflet'in DivIcon'undan türetiyoruz.
-// Bu, CSS transition'ları yerine Leaflet'in kendi konumlandırma sistemini kullanmamızı sağlar,
-// bu sayede harita kaydırma ve zoom işlemleri sırasında marker'lar daha stabil kalır.
-
 class DirectTransformMarker extends L.Marker {
     // Marker oluşturulurken Leaflet'in kullandığı DOM elementi
     get _old_element() {
@@ -787,7 +792,6 @@ class DirectTransformMarker extends L.Marker {
     }
 
     // Uçuş marker'ının konumunu yumuşak bir şekilde yeni pozisyona taşır.
-    // Bu, DirectTransformMarker'ın asıl görevini yerine getirir.
     setLatLng(latlng) {
         if (!this._map) return this;
 
@@ -797,8 +801,6 @@ class DirectTransformMarker extends L.Marker {
         // Geçerli pozisyon
         const currentPos = this._leaflet_pos || newPos;
 
-        // CSS transform geçişini uygulayarak yumuşak animasyon sağla
-        // Bu marker'ın DOM elementi (this._icon) üzerinde çalışır.
         const icon = this._icon;
         if (icon) {
             // Animasyonu başlatmadan önce, eğer zaten bir geçiş varsa sıfırla
@@ -989,55 +991,179 @@ function updateFlightListProgress(id, progress) {
     }
 }
 
-// --- CRUD İŞLEMLERİ (Örnek) ---
+// --- CRUD İŞLEMLERİ (API Entegre) ---
 
-function handleFormSubmit(e) {
+/**
+ * Back-end'deki tüm planlanmış ve mevcut uçuşları çeker.
+ */
+
+async function fetchFlights() {
+    showMessage('Uçuş verileri back-end\'den alınıyor...', 'info');
+    try {
+        const response = await fetch(PLANNED_FLIGHTS_URL); 
+        
+        if (!response.ok) {
+            throw new Error(`HTTP Hata! Durum kodu: ${response.status}`);
+        }
+        
+        const flightsData = await response.json();
+
+        // allFlights nesnesini temizle
+        allFlights = {}; 
+
+        flightsData.forEach(flight => {
+            const parsedStartTime = new Date(flight.startTime || flight.departureTime).getTime();
+            const parsedEndTime = parsedStartTime + (1.5 * 3600 * 1000); // Eğer endTime yoksa, tahmini 1.5 saat ekle
+
+            // ⭐ ÖNEMLİ GÜNCELLEME: startLat/Lng'yi startCoords objesine dönüştür
+            const startCoords = { 
+                lat: flight.startLat || 0, // Eksikse 0 kullan (hata vermemek için)
+                lng: flight.startLng || 0
+            };
+            
+            const endCoords = { 
+                lat: flight.endLat || 0, 
+                lng: flight.endLng || 0
+            };
+            
+            // Eğer back-end'den 'startTime' değil de sadece 'startTimestamp' geliyorsa
+            // (Bu durumda milisaniyeyi kontrol ediyoruz)
+            const finalStartTime = flight.startTimestamp < 1000000000000 
+                                 ? flight.startTimestamp * 1000 
+                                 : flight.startTimestamp;
+            
+            // Hedefimizdeki flight objesi artık bu şekilde olmalı:
+            allFlights[flight.flightId] = {
+                id: flight.flightId, // Uçuşları flightId ile indeksle (daha güvenli)
+                startCity: flight.origin || "Bilinmiyor",
+                endCity: flight.destination || "Bilinmiyor",
+                
+                // Ön yüzün beklediği tek koordinat objesi formatına dönüştürüldü
+                startCoords,
+                endCoords, 
+                
+                // Zamanı milisaniye cinsinden ayarla
+                parsedStartTime: finalStartTime,
+                // Basit bir endTime hesaplama (API'de yoksa)
+                parsedEndTime: finalStartTime + (1.5 * 3600 * 1000) 
+            };
+        });
+
+        showMessage(`${Object.keys(allFlights).length} adet uçuş başarıyla yüklendi.`, 'success');
+
+        // Harita ve listeyi yüklenen veriye göre güncelle
+        updateFlightList();
+        const targetTime = currentMode === 'live' ? currentTime : timeTravelDate.getTime();
+        updateFlightPositions(targetTime); 
+
+    } catch (error) {
+        console.error('Uçuş verileri alınamadı:', error);
+        showMessage(`HATA: Uçuş verileri back-end'den yüklenemedi. Detay: ${error.message}`, 'error');
+    }
+}
+async function handleFormSubmit(e) {
     e.preventDefault();
 
     const form = e.target;
+    // Formdan gelen flightId'yi al
     const flightId = form.flightId.value.toUpperCase();
     
+    // 1. Uçuş Kodu Kontrolü
     if (allFlights[flightId]) {
         showMessage(`HATA: Uçuş kodu "${flightId}" zaten mevcut.`, 'error');
         return;
     }
 
-    const startCoords = parseCoords(form.startCoords.value);
-    const endCoords = parseCoords(form.endCoords.value);
+    // 2. Koordinat Stringlerini Ayrıştırma (Parsing)
+    const startCoordsString = form.startCoords.value; // Örn: "39.9208,32.8541"
+    const endCoordsString = form.endCoords.value;     // Örn: "41.0082,28.9784"
     
-    const newFlight = {
-        id: flightId,
-        startCity: form.startCity.value,
-        endCity: form.endCity.value,
-        startCoords: startCoords,
-        endCoords: endCoords,
-        startTime: `${form.startDate.value}T${form.startTime.value}:00`,
-        endTime: `${form.endDate.value}T${form.endTime.value}:00`,
+    // Koordinat stringlerini Lat ve Lng olarak ayır ve sayıya dönüştür
+    const startParts = startCoordsString.split(',').map(s => parseFloat(s.trim()));
+    const endParts = endCoordsString.split(',').map(s => parseFloat(s.trim()));
+
+    // Hata Kontrolü: Ayrıştırma sonucunda iki geçerli sayı elde edilmeli
+    if (startParts.length !== 2 || isNaN(startParts[0]) || isNaN(startParts[1]) || 
+        endParts.length !== 2 || isNaN(endParts[0]) || isNaN(endParts[1])) {
+        showMessage('HATA: Koordinat formatı hatalı. Lütfen "Enlem,Boylam" formatında girin.', 'error');
+        return;
+    }
+
+    // 3. Back-end'e Gönderilecek Yeni Veri Nesnesi
+    const newFlightData = {
+        // Back-end'in ID ve isim beklentisine uygun olarak güncellendi
+        flightId: flightId, // Back-end'de flightId olarak tutuluyor olabilir
+        origin: form.startCity.value,
+        destination: form.endCity.value,
+        
+        // ⭐ GÜNCELLEME: Koordinatları ayrı Lat/Lng alanları olarak gönder
+        startLat: startParts[0],
+        startLng: startParts[1],
+        endLat: endParts[0],
+        endLng: endParts[1],
+        
+        // Zaman bilgileri (Back-end'in doğru kaydetmesi için)
+        // Back-end formatına göre güncellendi. Eğer back-end ISO string bekliyorsa:
+        departureDate: form.startDate.value, 
+        departureTime: form.startTime.value, 
+        startTime: `${form.startDate.value}T${form.startTime.value}:00`, // Opsiyonel, back-end'inizin hangisini kullandığına bağlı
+        // end time simülasyonu için back-end'e göndermeye gerek olmayabilir,
+        // ancak back-end bekliyorsa gönderilir:
+        // endTime: `${form.endDate.value}T${form.endTime.value}:00`, 
     };
     
-    newFlight.parsedStartTime = new Date(newFlight.startTime).getTime();
-    newFlight.parsedEndTime = new Date(newFlight.endTime).getTime();
-    
-    allFlights[flightId] = newFlight;
-    
-    // UI Güncelle
-    updateFlightList();
-    updateFlightPositions(currentMode === 'live' ? currentTime : timeTravelDate.getTime());
-    
-    showMessage(`Başarıyla yeni uçuş rotası eklendi: ${flightId}`, 'success');
-    toggleRightPanel(null); // Formu kapat
-    form.reset();
-}
+    try {
+        const response = await fetch(CREATE_FLIGHT_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(newFlightData),
+        });
 
-function deleteFlight(id) {
-    if (confirm(`"${id}" kodlu uçuşu silmek istediğinizden emin misiniz?`)) {
-        removeFlightFromMap(id); // Haritadan kaldır
-        delete allFlights[id]; // Veriden sil
-        updateFlightList(); // Listeyi güncelle
-        toggleRightPanel(null); // Detay panelini kapat
-        showMessage(`Uçuş ${id} silindi.`, 'info');
+        if (!response.ok) {
+            const errorBody = await response.json(); 
+            throw new Error(`Uçuş oluşturulamadı. Sunucu Mesajı: ${errorBody.message || response.statusText}`);
+        }
+
+        // Başarılıysa, verileri yeniden çekerek durumun tutarlılığını sağla
+        await fetchFlights(); 
+
+        showMessage(`Başarıyla yeni uçuş rotası eklendi: ${flightId}`, 'success');
+        toggleRightPanel(null); // Formu kapat
+        form.reset();
+
+    } catch (error) {
+        console.error('Uçuş oluşturma hatası:', error);
+        showMessage(`HATA: Uçuş eklenemedi. ${error.message}`, 'error');
     }
 }
+async function deleteFlight(id) {
+    if (confirm(`"${id}" kodlu uçuşu silmek istediğinizden emin misiniz?`)) {
+        try {
+            // DELETE isteği gönderme (Uç nokta: API_BASE_URL/ID)
+            const response = await fetch(`${API_BASE_URL}/${id}`, { 
+                method: 'DELETE',
+            });
+
+            if (!response.ok) {
+                throw new Error(`Sunucu hatası! Durum kodu: ${response.status}`);
+            }
+
+            // Başarılı olursa ön yüzdeki durumu güncelle
+            removeFlightFromMap(id); // Haritadan kaldır
+            delete allFlights[id]; // Veriden sil
+            updateFlightList(); // Listeyi güncelle
+            toggleRightPanel(null); // Detay panelini kapat
+
+            showMessage(`Uçuş ${id} başarıyla silindi.`, 'info');
+        } catch (error) {
+            console.error('Uçuş silme hatası:', error);
+            showMessage(`HATA: Uçuş silinemedi. Detay: ${error.message}`, 'error');
+        }
+    }
+}
+
 
 // --- TARİH VE SAAT FORMATLAMA ---
 
@@ -1097,7 +1223,7 @@ function initMap() {
 
     mapInitialized = true;
     
-    // İlk uçuşları başlat
+    // İlk uçuşları başlat (API'den çekecek)
     addInitialFlights();
     
     // Haritayı canlı modda başlat
@@ -1107,30 +1233,12 @@ function initMap() {
 
 
 // ====================================================================
-// ADD INITIAL FLIGHTS (YENİ VERSİYON - ZAMAN KAYDIRMASI YOK)
+// ADD INITIAL FLIGHTS (API ENTEGRASYONU)
 // ====================================================================
 
 function addInitialFlights() {
-    const initialFlightsData = [
-        // Bu örnek uçuşlar, 4 Aralık 2025 tarihinde gerçekleşecek şekilde tanımlanmıştır.
-        { id: 'TK-101', startCity: 'Ankara', endCity: 'İstanbul', startCoords: { lat: 39.9208, lng: 32.8541 }, endCoords: { lat: 41.0082, lng: 28.9784 }, startTime: '2025-12-04T16:00:00', endTime: '2025-12-04T17:30:00' },
-        { id: 'PEG-50', startCity: 'İzmir', endCity: 'Antalya', startCoords: { lat: 38.4192, lng: 27.1287 }, endCoords: { lat: 36.8969, lng: 30.7132 }, startTime: '2025-12-04T16:30:00', endTime: '2025-12-04T18:00:00' },
-        { id: 'QTR-99', startCity: 'Paris', endCity: 'Doha', startCoords: { lat: 48.8566, lng: 2.3522 }, endCoords: { lat: 25.2769, lng: 51.5200 }, startTime: '2025-12-04T15:00:00', endTime: '2025-12-04T21:00:00' },
-    ];
-    
-    // NOT: Zaman kaydırma mantığı (timeDifference) tamamen kaldırılmıştır.
-    // Uçuşlar artık tanımlandıkları tam tarihte ve saatte başlar/biter.
-
-    initialFlightsData.forEach(flight => {
-        const parsedStartTime = new Date(flight.startTime).getTime();
-        const parsedEndTime = new Date(flight.endTime).getTime();
-        
-        allFlights[flight.id] = {
-            ...flight,
-            parsedStartTime,
-            parsedEndTime
-        };
-    });
+    // Statik veriler yerine, back-end'den uçuşları çek.
+    fetchFlights();
 }
 // --- DOM ELEMENTLERİNİN TANIMLANMASI VE EVENT BAĞLAMA ---
 
@@ -1181,7 +1289,7 @@ function setupEventListeners() {
     if (DOM.toggleTimeTravelBtn) DOM.toggleTimeTravelBtn.addEventListener('click', () => toggleTimeTravelPanel(true));
     if (DOM.closeTimeTravelPanelBtn) DOM.closeTimeTravelPanelBtn.addEventListener('click', () => toggleTimeTravelPanel(false));
 
-    // Mod Değiştirme Butonları (HTML'de onclick ile tanımlandığı için burada gerek yok, ancak güvenlik için tekrar ekleyelim)
+    // Mod Değiştirme Butonları 
     if (DOM.modeLiveBtn) DOM.modeLiveBtn.addEventListener('click', () => setMode('live'));
     if (DOM.modeTimeTravelBtn) DOM.modeTimeTravelBtn.addEventListener('click', () => setMode('timetravel'));
 
@@ -1201,7 +1309,7 @@ function setupEventListeners() {
     if (DOM.ttDateInput) DOM.ttDateInput.addEventListener('change', () => applyTimeTravel());
     if (DOM.ttTimeInput) DOM.ttTimeInput.addEventListener('change', () => applyTimeTravel());
     
-    // Uygula Butonu
+    // Apply butonu
     if (DOM.ttApplyBtn) DOM.ttApplyBtn.addEventListener('click', () => applyTimeTravel());
 
 }
