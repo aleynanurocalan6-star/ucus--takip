@@ -29,14 +29,16 @@ namespace Backend
             // --- 2. FlightPosition Tablosu Ayarları ---
             
             // FlightPosition ve Flight arasında 1'den Çoğa ilişki kurar.
-            // Her pozisyon kaydı tek bir Flight'a aittir.
             modelBuilder.Entity<FlightPosition>()
                 .HasOne(p => p.Flight) // Position'ın bir Flight'ı vardır.
                 .WithMany() // Flight'ın çok sayıda Position'ı olabilir.
-                .HasForeignKey(p => p.FlightId); // Bağlantıyı FlightId üzerinden kur.
-
-            // Geri oynatım (playback) sorgularını hızlandırmak için indeks ekleme.
-            // Sorgular genellikle "Bu uçuşun şu zaman damgasından önceki en son konumunu bul" şeklinde olacaktır.
+                .HasForeignKey(p => p.FlightId) // Yabancı anahtar: FlightPosition.FlightId (string)
+                
+                // KRİTİK DÜZELTME: Yabancı anahtarın hedef aldığı ana Flight tablosundaki 
+                // anahtarı varsayılan PK (Id: int) yerine string tipindeki FlightId olarak ayarlar.
+                .HasPrincipalKey(f => f.FlightId); 
+            
+            // Geri oynatım (playback) sorgularını hızlandırmak için bileşik indeks ekleme.
             modelBuilder.Entity<FlightPosition>()
                 .HasIndex(p => new { p.FlightId, p.Timestamp });
         }
