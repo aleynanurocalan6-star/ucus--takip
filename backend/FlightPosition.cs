@@ -9,7 +9,7 @@ namespace Backend
         public int Id { get; set; }
 
         // Hangi uçuşa ait olduğunu belirler (Foreign Key)
-        public int FlightId { get; set; } 
+        public string FlightId { get; set; } 
         
         // Simülatörden gelen konumun UTC zaman damgası (milisecond cinsinden long)
         public long Timestamp { get; set; } 
