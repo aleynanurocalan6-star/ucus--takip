@@ -126,3 +126,4 @@ C:\Users\aleyn\ucus--takip\backend\obj\Debug\net8.0\refint\..dll
 C:\Users\aleyn\ucus--takip\backend\obj\Debug\net8.0\..pdb
 C:\Users\aleyn\ucus--takip\backend\obj\Debug\net8.0\..genruntimeconfig.cache
 C:\Users\aleyn\ucus--takip\backend\obj\Debug\net8.0\ref\..dll
+C:\Users\aleyn\ucus--takip\backend\obj\Debug\net8.0\..sourcelink.json

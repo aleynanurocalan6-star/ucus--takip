@@ -16,7 +16,7 @@ namespace _.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.0");
 
-            modelBuilder.Entity("Backend.Flight", b =>
+            modelBuilder.Entity("Backend.Models.Flight", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -31,29 +31,13 @@ namespace _.Migrations
                     b.Property<double>("CurrentLng")
                         .HasColumnType("REAL");
 
-                    b.Property<string>("DepartureDate")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DepartureTime")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Destination")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
                     b.Property<double>("EndLat")
                         .HasColumnType("REAL");
 
                     b.Property<double>("EndLng")
                         .HasColumnType("REAL");
 
-                    b.Property<string>("FlightId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Origin")
+                    b.Property<string>("FlightCode")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
@@ -78,13 +62,10 @@ namespace _.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FlightId")
-                        .IsUnique();
-
                     b.ToTable("Flights");
                 });
 
-            modelBuilder.Entity("Backend.FlightPosition", b =>
+            modelBuilder.Entity("Backend.Models.FlightPosition", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -102,9 +83,6 @@ namespace _.Migrations
                     b.Property<double>("Longitude")
                         .HasColumnType("REAL");
 
-                    b.Property<double>("Progress")
-                        .HasColumnType("REAL");
-
                     b.Property<double>("Speed")
                         .HasColumnType("REAL");
 
@@ -113,20 +91,7 @@ namespace _.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FlightId", "Timestamp");
-
-                    b.ToTable("Positions");
-                });
-
-            modelBuilder.Entity("Backend.FlightPosition", b =>
-                {
-                    b.HasOne("Backend.Flight", "Flight")
-                        .WithMany()
-                        .HasForeignKey("FlightId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Flight");
+                    b.ToTable("FlightPositions");
                 });
 #pragma warning restore 612, 618
         }
